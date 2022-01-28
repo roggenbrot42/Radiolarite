@@ -3,7 +3,7 @@ import sys
 import matplotlib
 import matplotlib.pyplot as plt
 import tikzplotlib
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, uic
 from PyQt5.QtWidgets import *
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as Navi
@@ -161,100 +161,12 @@ class DataReader:
 
         return network, canvas
 
-
-class MainWindowUI(object):
-    def __init__(self):
-        self.menuPlot = None
-        self.actionAddSubplot = None
-        self.actionSaveFigure = None
-        self.actionExit = None
-        self.statusbar = None
-        self.menuFile = None
-        self.menubar = None
-        self.verticalLayout = None
-        self.horizontalLayout = None
-        self.gridLayout = None
-        self.central_widget = None
-        self.actionOpenTouchstoneFile = None
-
-    def setupUi(self, mainwindow):
-        mainwindow.setObjectName("MainWindow")
-        window_width = 1440
-        window_height = 1024
-        screen = QApplication.desktop().screenGeometry()
-        self.setGeometry(int((screen.width() - window_width) / 2), int((screen.height() - window_height) / 2),
-                         window_width,
-                         window_height)
-        self.central_widget = QWidget(mainwindow)
-        self.central_widget.setObjectName("centralwidget")
-        self.gridLayout = QGridLayout(self.central_widget)
-        self.gridLayout.setObjectName("gridLayout")
-        self.horizontalLayout = QHBoxLayout()
-        self.horizontalLayout.setObjectName("horizontalLayout")
-        self.horizontalLayout.addStretch(1)
-        self.verticalLayout = QVBoxLayout()
-        self.verticalLayout.setObjectName("verticalLayout")
-        self.gridLayout.addLayout(self.verticalLayout, 0, 0, 1, 1)
-        self.gridLayout.addLayout(self.horizontalLayout, 1, 0, 1, 1)
-
-        mainwindow.setCentralWidget(self.central_widget)
-        self.menubar = QMenuBar(mainwindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 800, 22))
-        self.menubar.setObjectName("menubar")
-        self.menuFile = QMenu(self.menubar)
-        self.menuFile.setObjectName("menuFile")
-        self.menuPlot = QMenu(self.menubar)
-        self.menuPlot.setObjectName("menuPlot")
-        mainwindow.setMenuBar(self.menubar)
-        self.statusbar = QStatusBar(mainwindow)
-        self.statusbar.setObjectName("statusbar")
-        mainwindow.setStatusBar(self.statusbar)
-
-        self.actionOpenTouchstoneFile = QAction(mainwindow)
-        self.actionOpenTouchstoneFile.setObjectName("actionOpenTouchstoneFile")
-
-        self.actionSaveFigure = QAction(mainwindow)
-        self.actionSaveFigure.setObjectName("actionSaveFigure")
-
-        self.actionExit = QAction(mainwindow)
-        self.actionExit.setObjectName("actionExit")
-
-        self.actionAddSubplot = QAction(mainwindow)
-        self.actionAddSubplot.setObjectName("actionAddSubplot")
-
-        self.menuFile.addAction(self.actionOpenTouchstoneFile)
-        self.menuFile.addAction(self.actionSaveFigure)
-        self.menuFile.addAction(self.actionExit)
-        self.menubar.addAction(self.menuFile.menuAction())
-
-        self.menuPlot.addAction(self.actionAddSubplot)
-        self.menubar.addAction(self.menuPlot.menuAction())
-
-        self.retranslateUi(mainwindow)
-        QtCore.QMetaObject.connectSlotsByName(mainwindow)
-
-
-
-        self.actionExit.triggered.connect(mainwindow.close)
-        self.actionOpenTouchstoneFile.triggered.connect(self.getFile)
-        self.actionSaveFigure.triggered.connect(self.exportFigure)
-
-    def retranslateUi(self, mainwindow):
-        _translate = QtCore.QCoreApplication.translate
-        mainwindow.setWindowTitle(_translate("MainWindow", "Touchstone Plot"))
-        self.menuFile.setTitle(_translate("MainWindow", "File"))
-        self.actionOpenTouchstoneFile.setText(_translate("MainWindow", "Open Touchstone file"))
-        self.actionSaveFigure.setText(_translate("MainWindow", "Export Figure"))
-        self.actionExit.setText(_translate("MainWindow", "Exit"))
-        self.menuPlot.setTitle(_translate("MainWindow", "Plot"))
-        self.actionAddSubplot.setText(_translate("MainWindow", "Add Subplot"))
-
-
-class MainWindow(QMainWindow, MainWindowUI):
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setupUi(self)
-        self.setAcceptDrops(True)
+        uic.loadUi('mainwindow.ui', self)
+        self.actionOpenTouchstoneFile.triggered.connect(self.getFile)
+        self.actionExportFigure.triggered.connect(self.exportFigure)
         self.filename = ''
         self.canvas = None
         self.Title = None
@@ -266,7 +178,7 @@ class MainWindow(QMainWindow, MainWindowUI):
     def Update(self):
         plt.clf()
 
-        self.toolbar = Navi(self.canvas, self.central_widget)
+        self.toolbar = Navi(self.canvas, self.centralwidget)
         self.canvas.setFocusPolicy(QtCore.Qt.ClickFocus)
         self.canvas.setFocus()
         self.canvas.setAcceptDrops(True)
