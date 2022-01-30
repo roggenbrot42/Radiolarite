@@ -14,7 +14,7 @@
    <bool>true</bool>
   </property>
   <property name="windowTitle">
-   <string>Lydia TouchStone Plot</string>
+   <string>Radiolarite</string>
   </property>
   <property name="locale">
    <locale language="English" country="UnitedStates"/>
@@ -58,7 +58,8 @@
     <property name="title">
      <string>Plot</string>
     </property>
-    <addaction name="actionAdd_Subplot"/>
+    <addaction name="actionAddSubplot"/>
+    <addaction name="actionAddMarker"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuPlot"/>
@@ -78,9 +79,17 @@
     <string>Exit</string>
    </property>
   </action>
-  <action name="actionAdd_Subplot">
+  <action name="actionAddSubplot">
    <property name="text">
     <string>Add Subplot</string>
+   </property>
+  </action>
+  <action name="actionAddMarker">
+   <property name="text">
+    <string>Add Marker</string>
+   </property>
+   <property name="shortcut">
+    <string>M</string>
    </property>
   </action>
  </widget>

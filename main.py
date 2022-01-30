@@ -3,13 +3,17 @@ import sys
 import matplotlib
 import matplotlib.pyplot as plt
 import tikzplotlib
-from PyQt5 import QtCore, QtWidgets, uic
+from PyQt5 import QtCore, QtWidgets, uic, QtGui
 from PyQt5.QtWidgets import *
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as Navi
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from skrf.network import Network
+
+import ctypes
+myappid = u'roggenbrot42.radiolalite' # arbitrary string
+ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 matplotlib.use('Qt5Agg')
 
@@ -165,6 +169,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         uic.loadUi('mainwindow.ui', self)
+        self.setWindowIcon(QtGui.QIcon('Q.png'))
         self.actionOpenTouchstoneFile.triggered.connect(self.getFile)
         self.actionExportFigure.triggered.connect(self.exportFigure)
         self.filename = ''
