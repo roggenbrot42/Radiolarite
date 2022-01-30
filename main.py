@@ -1,4 +1,5 @@
 import sys
+import platform
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -12,10 +13,13 @@ from matplotlib.lines import Line2D
 from skrf.network import Network
 
 import ctypes
-myappid = u'roggenbrot42.radiolalite' # arbitrary string
-ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+myappid = u'roggenbrot42.radiolarite' # arbitrary string
+
+if platform.system() == 'Windows':
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 matplotlib.use('Qt5Agg')
+
 
 class DragDropEventHandler:
     @staticmethod
