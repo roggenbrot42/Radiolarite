@@ -10,10 +10,13 @@ from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as Navi
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from skrf.network import Network
+from skrf.network import Network as Network1
+from skrf.network2 import Network
+import seaborn as sns
 
 import ctypes
-myappid = u'roggenbrot42.radiolarite' # arbitrary string
+
+myappid = u'roggenbrot42.radiolarite'  # arbitrary string
 
 if platform.system() == 'Windows':
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
@@ -70,8 +73,6 @@ class MplCanvas(FigureCanvasQTAgg):
         super(MplCanvas, self).__init__(fig)
 
     def on_pick(self, event: matplotlib.backend_bases.Event):
-        if event.mouseevent.button != MouseButton.LEFT:
-            return
         if isinstance(event.artist, Line2D):
             if event.artist is not self.picked:
                 event.artist.set_linewidth(2 * self.default_linewidth)
@@ -146,10 +147,13 @@ class DataReader:
         if canvas is None:
             canvas = MplCanvas()
 
-        network = Network(filename)
+        network1 = Network1(filename) #load from
+        network = Network.from_ntwkv1(network1)
 
+        sns.color_palette()
         ax = canvas.axes
-        network.plot_s_db(ax=canvas.axes, picker=5)
+
+        lines = network.s.db.plot(ax=canvas.axes, picker=5)
 
         network.frequency.unit = 'ghz'
 
@@ -168,6 +172,7 @@ class DataReader:
         ax.set_title(title)
 
         return network, canvas
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -188,7 +193,7 @@ class MainWindow(QMainWindow):
         plt.clf()
 
         self.toolbar = Navi(self.canvas, self.centralwidget)
-        self.canvas.setFocusPolicy(QtCore.Qt.ClickFocus)
+        self.canvas.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.canvas.setFocus()
         self.canvas.setAcceptDrops(True)
         self.canvas.draw()
@@ -245,6 +250,9 @@ def window():
     app = QApplication(sys.argv)
     win = MainWindow()
     win.show()
+    if len(sys.argv) > 1:
+        filelist = sys.argv[1:]
+        win.readData(filelist)
     sys.exit(app.exec_())
 
 
