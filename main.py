@@ -3,6 +3,7 @@ import platform
 
 import matplotlib
 import matplotlib.pyplot as plt
+import skrf
 import tikzplotlib
 from PyQt5 import QtCore, QtWidgets, uic, QtGui
 from PyQt5.QtWidgets import *
@@ -72,6 +73,19 @@ class MplCanvas(FigureCanvasQTAgg):
         self.line2leg = {}
         super(MplCanvas, self).__init__(fig)
 
+    def generate_line_to_legend(self):
+        ax = self.axes
+        legend = ax.legend()
+        legend.set_draggable(True)
+
+
+        self.line2leg = {}
+
+        for legline, origline in zip(legend.get_lines(), ax.lines):
+            legline.set_picker(5)  # Enable picking on the legend line.
+            self.line2leg[legline] = origline
+            self.line2leg[origline] = legline
+
     def on_pick(self, event: matplotlib.backend_bases.Event):
         if isinstance(event.artist, Line2D):
             if event.artist is not self.picked:
@@ -120,12 +134,15 @@ class MplCanvas(FigureCanvasQTAgg):
             self.picked = None
             self.draw_idle()
             self.pickstate = 0
+            self.generate_line_to_legend()
         elif event.key == 'f2' and self.picked is not None:
             h, l = self.axes.get_legend_handles_labels()
             index = self.figure.axes[0].lines.index(self.picked)
-            l[index] = "F2"
-            self.axes.legend(h, l)
-            self.draw_idle()
+            (text,result) = QInputDialog.getText(self,'Enter new Label','Label',text=l[index])
+            if text:
+                l[index] = text
+                self.axes.legend(h, l)
+                self.draw_idle()
 
     def dragEnterEvent(self, e):
         DragDropEventHandler.dragEnterEvent(e)
@@ -147,27 +164,26 @@ class DataReader:
         if canvas is None:
             canvas = MplCanvas()
 
-        network1 = Network1(filename) #load from
-        network = Network.from_ntwkv1(network1)
+        network1 = Network1(filename) #load from file
+        network = Network.from_ntwkv1(network1) #convert to Network2 type
 
-        sns.color_palette()
+        sns.color_palette() #don't know if this works
         ax = canvas.axes
 
         lines = network.s.db.plot(ax=canvas.axes, picker=5)
+        if network1.frequency.stop > 1e6:
+            unit = 'MHz'
+            skrf.plotting.scale_frequency_ticks(ax,unit)
+        elif network1.frequency.stop > 1e9:
+            unit = 'GHz'
+            skrf.plotting.scale_frequency_ticks(ax,unit)
+        elif network1.frequency.stop > 1e12:
+            unit = 'THz'
+            skrf.plotting.scale_frequency_ticks(ax,unit)
 
-        network.frequency.unit = 'ghz'
+        canvas.generate_line_to_legend()
 
-        legend = ax.legend()
-        legend.set_draggable(True)
-
-        canvas.line2leg = {}
-
-        for legline, origline in zip(legend.get_lines(), ax.lines):
-            legline.set_picker(5)  # Enable picking on the legend line.
-            canvas.line2leg[legline] = origline
-            canvas.line2leg[origline] = legline
-
-        ax.set_xlabel('Frequency (Hz)')
+        ax.set_xlabel('Frequency ({})'.format(unit))
         ax.set_ylabel('Magnitude (dB)')
         ax.set_title(title)
 
@@ -192,7 +208,8 @@ class MainWindow(QMainWindow):
     def Update(self):
         plt.clf()
 
-        self.toolbar = Navi(self.canvas, self.centralwidget)
+        if not self.toolbar:
+            self.toolbar = Navi(self.canvas, self.centralwidget)
         self.canvas.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.canvas.setFocus()
         self.canvas.setAcceptDrops(True)
