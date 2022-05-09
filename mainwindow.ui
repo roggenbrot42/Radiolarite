@@ -24,14 +24,14 @@
     <item row="0" column="0">
      <layout class="QGridLayout" name="gridLayout" rowstretch="0,0">
       <item row="0" column="0">
-       <layout class="QVBoxLayout" name="verticalLayout" stretch="">
+       <layout class="QVBoxLayout" name="verticalLayout">
         <property name="spacing">
          <number>1</number>
         </property>
        </layout>
       </item>
       <item row="1" column="0">
-       <layout class="QHBoxLayout" name="horizontalLayout" stretch=""/>
+       <layout class="QHBoxLayout" name="horizontalLayout"/>
       </item>
      </layout>
     </item>
@@ -43,13 +43,14 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>21</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionNew"/>
     <addaction name="actionOpenTouchstoneFile"/>
     <addaction name="actionExportFigure"/>
     <addaction name="actionExit"/>
@@ -66,7 +67,7 @@
   </widget>
   <action name="actionOpenTouchstoneFile">
    <property name="text">
-    <string>Open Touchstone File</string>
+    <string>Open</string>
    </property>
   </action>
   <action name="actionExportFigure">
@@ -90,6 +91,11 @@
    </property>
    <property name="shortcut">
     <string>M</string>
+   </property>
+  </action>
+  <action name="actionNew">
+   <property name="text">
+    <string>New</string>
    </property>
   </action>
  </widget>
