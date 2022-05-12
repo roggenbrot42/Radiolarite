@@ -22,7 +22,7 @@ def window():
     win.show()
     if len(sys.argv) > 1:
         filelist = sys.argv[1:]
-        win.readData(filelist)
+        win.readFiles(filelist)
     sys.exit(app.exec_())
 
 

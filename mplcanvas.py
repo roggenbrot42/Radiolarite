@@ -31,10 +31,7 @@ class MplCanvas(FigureCanvasQTAgg):
         ax = self.axes
         legend = ax.legend()
         legend.set_draggable(True)
-
-
         self.line2leg = {}
-
         for legline, origline in zip(legend.get_lines(), ax.lines):
             legline.set_picker(5)  # Enable picking on the legend line.
             self.line2leg[legline] = origline
@@ -111,27 +108,47 @@ class MplCanvas(FigureCanvasQTAgg):
         self.draw()
 
     def reset(self):
-        Figure(figsize=(4, 3), dpi=300)
+        self.networks = []
+        self.figure.axes[0].clear()
+
+    def addNetwork(self, network: Network):
+        if not network:
+            return
+        if(isinstance(network, Network)):
+            network.frequency.unit = 'ghz'  # fix for https://github.com/scikit-rf/scikit-rf/issues/293
+            self.networks.append(network)
+        else:
+            raise Exception("Wrong class type {}, expected Network".format(type(network)))
+
+    def plot(self,mode = 'mag'):
+        ax = self.axes
+        self.figure.axes[0].clear()
+
+        for nw in self.networks:
+            if mode == 'mag':
+                lines = nw.s.db.plot(ax=ax, picker=5)
+            else:
+                raise Exception("Mode not implemented!")
+
+    def getNetworks(self):
+        return self.networks
 
 class DataReader:
     @staticmethod
     def readData(filename: str, title: str, canvas: MplCanvas) -> Network:
 
-        if canvas is None:
-            canvas = MplCanvas()
-
         network1 = Network1(filename) #load from file
         network = Network.from_ntwkv1(network1) #convert to Network2 type
 
         sns.color_palette() #don't know if this works
-        ax = canvas.axes
+        #ax = canvas.axes
 
         #lines = network.s.db.plot(ax=canvas.axes, picker=5)
 
 
 
 
-        return network, canvas
+        return network
 
 class DragDropEventHandler:
     @staticmethod
