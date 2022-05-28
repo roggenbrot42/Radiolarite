@@ -1,14 +1,19 @@
 from PyQt5 import QtCore
+from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 import matplotlib
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as Navi
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-import skrf
-from skrf.network import Network as Network1
-from skrf.network2 import Network
+from skrf.network import Network as SkNetwork1
+from skrf.network2 import Network as SkNetwork
 import seaborn as sns
+
+class NetworkItem:
+    def __init__(self,network: SkNetwork, attributes = None):
+        self.nw = network
+        self.attr = attributes
 
 class MplCanvas(FigureCanvasQTAgg):
     line2leg: dict[Line2D, Line2D]
@@ -26,6 +31,8 @@ class MplCanvas(FigureCanvasQTAgg):
         self.pickstate = 0
         self.line2leg = {}
         super(MplCanvas, self).__init__(fig)
+
+    selectionChanged = pyqtSignal(int)
 
     def generate_line_to_legend(self):
         ax = self.axes
@@ -53,6 +60,8 @@ class MplCanvas(FigureCanvasQTAgg):
                     self.picked = self.line2leg[event.artist]
                 self.pickstate = 1
 
+                self.selectionChanged.emit(self.pickstate)
+
         self.draw_idle()
 
     def button_release_event(self, event: matplotlib.backend_bases.Event):
@@ -70,6 +79,8 @@ class MplCanvas(FigureCanvasQTAgg):
                 self.draw_idle()
             self.pickstate = 2
 
+            self.selectionChanged.emit(self.pickstate)
+
     def button_press_event(self, event):
         pass
 
@@ -81,7 +92,7 @@ class MplCanvas(FigureCanvasQTAgg):
                 self.line2leg.pop(value)
                 self.axes.legend()
             except ValueError:
-                print(self.picked)
+                print("picked error: {}".format(self.picked))
             self.picked = None
             self.draw_idle()
             self.pickstate = 0
@@ -111,22 +122,27 @@ class MplCanvas(FigureCanvasQTAgg):
         self.networks = []
         self.figure.axes[0].clear()
 
-    def addNetwork(self, network: Network):
+    def addNetwork(self, network: SkNetwork):
         if not network:
             return
-        if(isinstance(network, Network)):
+        if(isinstance(network, SkNetwork)):
             network.frequency.unit = 'ghz'  # fix for https://github.com/scikit-rf/scikit-rf/issues/293
             self.networks.append(network)
         else:
             raise Exception("Wrong class type {}, expected Network".format(type(network)))
 
-    def plot(self,mode = 'mag'):
+    def plot(self,mode = 'db'):
         ax = self.axes
         self.figure.axes[0].clear()
 
         for nw in self.networks:
-            if mode == 'mag':
+            if mode == 'db':
                 lines = nw.s.db.plot(ax=ax, picker=5)
+                print("Plotted line: {}".format(lines))
+            elif mode == 'mag':
+                lines = nw.s.mag.plot(ax=ax, picker=5)
+            elif mode == 'smith':
+                lines = nw.s.plot(ax=ax, picker=5)
             else:
                 raise Exception("Mode not implemented!")
 
@@ -135,19 +151,13 @@ class MplCanvas(FigureCanvasQTAgg):
 
 class DataReader:
     @staticmethod
-    def readData(filename: str, title: str, canvas: MplCanvas) -> Network:
+    def readData(filename: str, title: str, canvas: MplCanvas) -> SkNetwork:
 
-        network1 = Network1(filename) #load from file
-        network = Network.from_ntwkv1(network1) #convert to Network2 type
-
+        network1 = SkNetwork1(filename) #load from file
+        network = SkNetwork.from_ntwkv1(network1) #convert to Network2 type
         sns.color_palette() #don't know if this works
         #ax = canvas.axes
-
         #lines = network.s.db.plot(ax=canvas.axes, picker=5)
-
-
-
-
         return network
 
 class DragDropEventHandler:

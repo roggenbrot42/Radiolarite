@@ -12,7 +12,7 @@ from mainwindow import DragDropEventHandler, MainWindow
 myappid = u'roggenbrot42.radiolarite'  # arbitrary string
 
 if platform.system() == 'Windows':
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid) #group in taskbar
 
 matplotlib.use('Qt5Agg')
 
