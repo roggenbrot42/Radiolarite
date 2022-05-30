@@ -1,13 +1,9 @@
 import sys
 import platform
-
 import matplotlib
 from PyQt5.QtWidgets import *
-
-
 import ctypes
-
-from mainwindow import DragDropEventHandler, MainWindow
+from mainwindow import MainWindow
 
 myappid = u'roggenbrot42.radiolarite'  # arbitrary string
 

@@ -1,95 +1,98 @@
-from collections import OrderedDict
-
+import tikzplotlib
 from PyQt5 import QtCore, QtWidgets, uic, QtGui
-from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as Navi
-import tikzplotlib
-from mplcanvas import MplCanvas, DragDropEventHandler, DataReader
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navi
 from skrf.network import Network as Network1
 from skrf.network2 import Network
 
+from mplcanvas import MplCanvas, plotModes
+from networkitem import NetworkItem
+
+
+class DragDropEventHandler:
+    @staticmethod
+    def dragEnterEvent(e):
+        if e.mimeData().hasUrls:
+            e.accept()
+        else:
+            e.ignore()
+
+    @staticmethod
+    def dragMoveEvent(e):
+        if e.mimeData().hasUrls:
+            e.accept()
+        else:
+            e.ignore()
+
+    @staticmethod
+    def dropEvent(e):
+        strings = list()
+        if e.mimeData().hasUrls:
+            e.setDropAction(Qt.CopyAction)
+            e.accept()
+            for url in e.mimeData().urls():
+                strings.append(str(url.toLocalFile()))
+            print("GOT ADDRESSES:", strings)
+        else:
+            e.ignore()  # just like above functions
+        return strings
+
 
 class MainWindow(QMainWindow):
-    plotModes = OrderedDict((
-            ('decibels', 'db'),
-            ('smith', 'smith'),
-            ('magnitude', 'mag'),
-            ('phase (deg)', 'deg'),
-            ('phase unwrapped (deg)', 'deg_unwrap'),
-            ('phase (rad)', 'rad'),
-            ('phase unwrapped (rad)', 'rad_unwrap'),
-            ('real', 're'),
-            ('imaginary', 'im'),
-            ('group delay', 'group_delay'),
-            ('vswr', 'vswr')
-        ))
 
     def __init__(self):
         super().__init__()
+        self.canvas = None
+        self.Title = None
+        self.toolbar = None
+
+        self.setupUI()
+        self.setupModels()
+        self.setupViews()
+
+        self.actionNew.triggered.connect(self.reset)
+        self.actionOpenTouchstoneFile.triggered.connect(self.openFileDialog)
+        self.actionExportFigure.triggered.connect(self.exportFigure)
+        self.plotSelectorBox.currentIndexChanged.connect(self.canvas.changePlotMode)
+
+    def setupUI(self):
         uic.loadUi('mainwindow.ui', self)
         self.setWindowIcon(QtGui.QIcon('Q.png'))
-        self.actionNew.triggered.connect(self.reset)
-        self.actionOpenTouchstoneFile.triggered.connect(self.getFile)
-        self.actionExportFigure.triggered.connect(self.exportFigure)
-        self.filename = ''
-
-        self.canvas = MplCanvas()
-        self.Title = None
-        self.filename = None
-        self.toolbar = None
-        if not self.toolbar:
-            self.toolbar = Navi(self.canvas, self.centralwidget)
+        self.canvas = MplCanvas(parent=self)
+        self.toolbar = Navi(self.canvas, self.centralwidget)
         self.canvas.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.canvas.setFocus()
-        self.canvas.setAcceptDrops(True)
         self.horizontalLayout.addWidget(self.toolbar)
         self.horizontalLayout_2.addWidget(self.canvas)
-        self.initPlotSelectorBox()
-        self.canvas.selectionChanged.connect(self.selectionChanged)
-        self.plotSelectorBox.currentIndexChanged.connect(self.Update)
+        self.setupPlotSelectorBox()
 
+    def setupModels(self):
         self.networkModel = QtGui.QStandardItemModel()
-        self.treeView.setModel(self.networkModel)
-        self.treeView.activated.connect(self.treeViewItemSelected)
-
         self.networkModel.setHorizontalHeaderLabels(["Name", "Plot"])
-        self.networkModel.itemChanged.connect(self.itemChanged)
-        self.networkModel.rowsInserted.connect(self.Update)
+        self.selectionModel = QItemSelectionModel(self.networkModel)
 
+    def setupViews(self):
+        self.canvas.setModel(self.networkModel)
+        self.canvas.setSelectionModel(self.selectionModel)
+        self.treeView.setModel(self.networkModel)
+        self.treeView.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.treeView.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.treeView.setSelectionModel(self.selectionModel)
+        self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.treeView.setAnimated(True)
 
-    def initPlotSelectorBox(self):
-        keys = list(self.plotModes.keys())
+    def setupPlotSelectorBox(self):
+        keys = list(plotModes.keys())
         for item in keys:
             self.plotSelectorBox.addItem(item)
 
-    def selectionChanged(self,number: int):
-        pass
-
-    def treeViewItemSelected(self, index : QModelIndex):
-        print("Selected index: row {} col {}".format(index.row(),index.column()))
-
     def reset(self):
-        self.canvas.reset()
         self.Title = None
         rowc = self.networkModel.rowCount()
         self.networkModel.invisibleRootItem().removeRows(0,rowc)
-        self.Update()
 
-    def itemChanged(self,item : QStandardItem):
-        if item.parent() == None: #Contains network
-            network = item.data(QtCore.Qt.UserRole+1)
-            network.name = item.data(QtCore.Qt.DisplayRole)
-        self.Update()
-
-    def Update(self):
-        mode = self.plotModes[self.plotSelectorBox.currentText()]
-        self.canvas.plot(mode)
-        self.canvas.generate_line_to_legend()
-        self.canvas.draw()
-
-    def getFile(self):
+    def openFileDialog(self):
         filename = QFileDialog.getOpenFileName(filter="Touchstone Files (*.s1p *.s2p *.s3p)")[0]
         if filename:
             filenames = list()
@@ -115,31 +118,17 @@ class MainWindow(QMainWindow):
         print('FILE', self.Title)
 
         nw = Network.from_ntwkv1(Network1(filename))
-        self.canvas.addNetwork(nw)
+        nw.frequency.unit = 'ghz'  # fix for https://github.com/scikit-rf/scikit-rf/issues/293
+        #self.canvas.addNetwork(nw)
         root = self.networkModel.invisibleRootItem()
-        nwItem = QtGui.QStandardItem()
-        nwItem.setData(nw.name, QtCore.Qt.DisplayRole)
-        nwItem.setData(nw)  # UserRole + 1
-        self.networkModel.appendRow(nwItem)
-
-        for it in nw.port_tuples:
-            sName = "S{}{}".format(it[0] + 1, it[1] + 1)
-            sItem = QtGui.QStandardItem()
-            sItem.setText(sName)
-            sItem.setEditable(False)
-            checkItem = QtGui.QStandardItem()
-            checkItem.setCheckable(True)
-            checkItem.setCheckState(True)
-            checkItem.setEditable(False)
-            nwItem.appendRow([sItem, checkItem])
-
+        nwItem = NetworkItem(nw)
+        root.appendRow(nwItem)
         self.treeView.expandAll()
 
     def readFiles(self, strings):
         try:
             for filename in strings:
-                networks = self.readFile(filename)
-                return networks
+                self.readFile(filename)
         except Exception as e:
             print(e)
             QtWidgets.QMessageBox().critical(self, "Critical Error", str(e))
