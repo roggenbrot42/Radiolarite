@@ -2,6 +2,7 @@ import tikzplotlib
 from PyQt5 import QtCore, QtWidgets, uic, QtGui
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
+from PyQt5.QtGui import *
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navi
 from skrf.network import Network as Network1
 from skrf.network2 import Network
@@ -43,9 +44,11 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.canvas = None
-        self.Title = None
+        self.canvas : MplCanvas = None
+        self.title = None
         self.toolbar = None
+        self.networkModel = None
+        self.selectionModel = None
 
         self.setupUI()
         self.setupModels()
@@ -55,11 +58,16 @@ class MainWindow(QMainWindow):
         self.actionOpenTouchstoneFile.triggered.connect(self.openFileDialog)
         self.actionExportFigure.triggered.connect(self.exportFigure)
         self.plotSelectorBox.currentIndexChanged.connect(self.canvas.changePlotMode)
+        self.actionGridMajor.toggled.connect(self.canvas.toggleMajorGrid)
+        self.actionGridMinor.toggled.connect(self.canvas.toggleMinorGrid)
+        self.actionCopy_to_clipboard.triggered.connect(self.copyToClipboard)
 
     def setupUI(self):
         uic.loadUi('mainwindow.ui', self)
         self.setWindowIcon(QtGui.QIcon('Q.png'))
-        self.canvas = MplCanvas(parent=self)
+        self.canvas = MplCanvas(parent=self,
+                                gridMajor=self.actionGridMajor.isChecked(),
+                                gridMinor=self.actionGridMinor.isChecked())
         self.toolbar = Navi(self.canvas, self.centralwidget)
         self.canvas.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.canvas.setFocus()
@@ -88,9 +96,10 @@ class MainWindow(QMainWindow):
             self.plotSelectorBox.addItem(item)
 
     def reset(self):
-        self.Title = None
+        self.title = None
         rowc = self.networkModel.rowCount()
-        self.networkModel.invisibleRootItem().removeRows(0,rowc)
+        self.networkModel.invisibleRootItem().removeRows(0, rowc)
+        self.canvas.reset()
 
     def openFileDialog(self):
         filename = QFileDialog.getOpenFileName(filter="Touchstone Files (*.s1p *.s2p *.s3p)")[0]
@@ -111,15 +120,18 @@ class MainWindow(QMainWindow):
             f.write(code)
             f.close()
 
+    def copyToClipboard(self):
+        pixmap = self.canvas.grab()
+        qApp.clipboard().setPixmap(pixmap)
+
     def readFile(self, filename):
         import os
         baseName = os.path.basename(filename)
-        self.Title = os.path.splitext(baseName)[0]
-        print('FILE', self.Title)
+        self.title = os.path.splitext(baseName)[0]
+        print('FILE', self.title)
 
         nw = Network.from_ntwkv1(Network1(filename))
         nw.frequency.unit = 'ghz'  # fix for https://github.com/scikit-rf/scikit-rf/issues/293
-        #self.canvas.addNetwork(nw)
         root = self.networkModel.invisibleRootItem()
         nwItem = NetworkItem(nw)
         root.appendRow(nwItem)

@@ -23,32 +23,37 @@ plotModes = OrderedDict((
     ('imaginary', 'im'),
 ))
 
+
 class MplCanvas(FigureCanvasQTAgg):
     line2leg: dict[Line2D, Line2D]
     selectionChange = pyqtSignal(int)
 
-    def __init__(self, parent=None, width=8, height=4.5, dpi=120):
+    def __init__(self, parent=None, width=8, height=4.5, dpi=120, gridMajor: bool=True, gridMinor: bool=True):
         fig = Figure(figsize=(width, height), dpi=dpi)
         super(MplCanvas, self).__init__(fig)
-        self.axes : matplotlib.axes._axes.Axes = fig.add_subplot(111)
+        self.axes: matplotlib.axes._axes.Axes = fig.add_subplot(111)
         fig.canvas.mpl_connect('pick_event', self.on_pick)
         fig.canvas.mpl_connect('button_press_event', self.button_press_event)
         fig.canvas.mpl_connect('button_release_event', self.button_release_event)
         fig.canvas.mpl_connect('key_press_event', self.key_event)
-        self.networkModel : QStandardItemModel = None
+        self.networkModel: QStandardItemModel = None
         self.selectionModel = None
-        self.default_linewidth = 1.5 #don't change or it won't match with mpl default and glitch ---
-        self.picked : matplotlib.lines.Line2D = None  # type: Line2D #always the line, never legend
+        self.default_linewidth = 1.5  # don't change or it won't match with mpl default and glitch ---
+        self.picked: matplotlib.lines.Line2D = None  # type: Line2D #always the line, never legend
         self.pickstate = 0
         self.line2leg = {}
         self.trace2param = {}
         self.plotMode = 'db'
+        self.gridMajor = gridMajor
+        self.gridMinor = gridMinor
+        self.grid()
 
     def reset(self):
         self.figure.axes[0].clear()
         self.trace2param = {}
         self.pickstate = 0
         self.picked = None
+        self.grid()
         self.draw_idle()
 
     def setModel(self, networkModel: QStandardItemModel):
@@ -61,29 +66,29 @@ class MplCanvas(FigureCanvasQTAgg):
         else:
             raise Exception("Wrong type for Network Model")
 
-    def setSelectionModel(self, selectionModel : QItemSelectionModel):
+    def setSelectionModel(self, selectionModel: QItemSelectionModel):
         if isinstance(selectionModel, QItemSelectionModel):
             self.selectionModel = selectionModel
-            #self.selectionModel.selectionChanged.connect(self.selectionChanged)
+            # self.selectionModel.selectionChanged.connect(self.selectionChanged)
         else:
             raise Exception("Wrong type for Selection Model")
 
-    def addTraces(self, parent : QModelIndex, first : int, last : int):
-        nwItem = self.networkModel.itemFromIndex(self.networkModel.index(first,0))
-        if isinstance(nwItem, NetworkItem): #this contains a network
+    def addTraces(self, parent: QModelIndex, first: int, last: int):
+        nwItem = self.networkModel.itemFromIndex(self.networkModel.index(first, 0))
+        if isinstance(nwItem, NetworkItem):  # this contains a network
             nw = nwItem.network()
             parm = nwItem.enabledParams()
             for p in parm:
                 ax = self.figure.axes[0]
-                traces = self.plotNetwork(nw,p.toTuple())
+                traces = self.plotNetwork(nw, p.toTuple())
                 self.trace2param[traces[0]] = p
             self.generate_line_to_legend()
             self.draw_idle()
 
-    def removeTrace(self, parent : QModelIndex, first : int, last : int):
-        for row in range(first,last+1):
-            idx = self.networkModel.index(row,0)
-            item : NetworkItem = self.networkModel.itemFromIndex(idx)
+    def removeTrace(self, parent: QModelIndex, first: int, last: int):
+        for row in range(first, last + 1):
+            idx = self.networkModel.index(row, 0)
+            item: NetworkItem = self.networkModel.itemFromIndex(idx)
             for p in item.params():
                 pass
             self.axes.legend()
@@ -93,41 +98,40 @@ class MplCanvas(FigureCanvasQTAgg):
     def redrawAll(self):
         self.reset()
         for i in range(self.networkModel.rowCount()):
-            idx = self.networkModel.index(i,0)
-            ntwk : NetworkItem = self.networkModel.itemFromIndex(idx)
+            idx = self.networkModel.index(i, 0)
+            ntwk: NetworkItem = self.networkModel.itemFromIndex(idx)
             if isinstance(ntwk, NetworkItem):
                 for p in ntwk.enabledParams():
-                    traces = self.plotNetwork(ntwk.network(),p.toTuple())
+                    traces = self.plotNetwork(ntwk.network(), p.toTuple())
                     if traces and len(traces) > 0:
                         self.trace2param[traces[0]] = p
-
         self.axes.legend()
+        self.grid()
         self.generate_line_to_legend()
         self.draw_idle()
 
-    def plotNetwork(self, network : SkNetwork, param : tuple[int,int] = None):
+    def plotNetwork(self, network: SkNetwork, param: tuple[int, int] = None):
         if isinstance(network, SkNetwork):
             pm = self.plotMode
             prm = network.s
             if pm == 'smith':
                 rep = prm
-            elif hasattr(prm,pm):
-                rep = getattr(prm,pm)
+            elif hasattr(prm, pm):
+                rep = getattr(prm, pm)
             else:
                 raise Exception("Unknown representation")
             ax = self.figure.axes[0]
-            if param == None:
+            if param is None:
                 lines = rep.plot(ax=ax, picker=5)
             else:
-                lines = rep.plot(m=param[0], n=param[1],ax=ax,picker=5)
+                lines = rep.plot(m=param[0], n=param[1], ax=ax, picker=5)
             return lines
-
 
     def changePlotMode(self, index):
         self.plotMode = list(plotModes.values())[index]
         self.redrawAll()
 
-    def selectionChanged(self, selected : QItemSelection, deselected : QItemSelection):
+    def selectionChanged(self, selected: QItemSelection, deselected: QItemSelection):
         for idx in selected.indexes():
             item = self.networkModel.itemFromIndex(idx)
             if isinstance(item, ParamItem):
@@ -135,6 +139,22 @@ class MplCanvas(FigureCanvasQTAgg):
         if len(selected) == 0:
             self.pickLine(None)
         pass
+
+    def grid(self):
+        self.toggleMajorGrid(self.gridMajor)
+        self.toggleMinorGrid(self.gridMinor)
+
+    def toggleMajorGrid(self, b: bool):
+        self.axes.grid(visible=b, which='major')
+        self.draw_idle()
+
+    def toggleMinorGrid(self, b: bool):
+        self.axes.grid(visible=b, which='minor', linestyle='--', linewidth=0.25 * self.default_linewidth)
+        if b:
+            self.axes.minorticks_on()
+        else:
+            self.axes.minorticks_off()
+        self.draw_idle()
 
     def generate_line_to_legend(self):
         ax = self.axes
@@ -167,14 +187,14 @@ class MplCanvas(FigureCanvasQTAgg):
 
     def on_pick(self, event: matplotlib.backend_bases.Event):
         if isinstance(event.artist, Line2D):
-            if self.line2leg[event.artist][1] == True:
+            if self.line2leg[event.artist][1]:
                 trace = self.line2leg[event.artist][0]
             else:
                 trace = event.artist
             if trace is not self.picked:
                 self.pickLine(trace)
                 item = self.trace2param[self.picked]
-                self.selectionModel.select(self.networkModel.indexFromItem(item),QItemSelectionModel.ClearAndSelect)
+                self.selectionModel.select(self.networkModel.indexFromItem(item), QItemSelectionModel.ClearAndSelect)
                 self.selectionChange.emit(self.pickstate)
 
     def button_release_event(self, event: matplotlib.backend_bases.Event):
