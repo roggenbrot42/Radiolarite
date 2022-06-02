@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 import matplotlib
+import openpyxl.drawing.image
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -10,6 +11,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from skrf.network2 import Network as SkNetwork
+from skrf.plotting import *
 
 from networkitem import NetworkItem, ParamItem
 
@@ -31,7 +33,7 @@ class MplCanvas(FigureCanvasQTAgg):
     def __init__(self, parent=None, width=8, height=4.5, dpi=120, gridMajor: bool=True, gridMinor: bool=True):
         fig = Figure(figsize=(width, height), dpi=dpi)
         super(MplCanvas, self).__init__(fig)
-        self.axes: matplotlib.axes._axes.Axes = fig.add_subplot(111)
+        fig.add_subplot(111)
         fig.canvas.mpl_connect('pick_event', self.on_pick)
         fig.canvas.mpl_connect('button_press_event', self.button_press_event)
         fig.canvas.mpl_connect('button_release_event', self.button_release_event)
@@ -47,11 +49,24 @@ class MplCanvas(FigureCanvasQTAgg):
         self.gridMajor = gridMajor
         self.gridMinor = gridMinor
         self.grid()
+        self.figure.tight_layout()
+        self._lines = []
+
+    def axes(self):
+        ax = self.figure.get_axes()
+        if isinstance(ax,list):
+            return ax[0]
+        else:
+            return ax
 
     def reset(self):
-        self.figure.axes[0].clear()
+        for ax in self.figure.get_axes():
+            ax.clear()
+        self.figure.clf(keep_observers=False)
+        self.figure.subplots()
         self.trace2param = {}
         self.pickstate = 0
+        self._lines = []
         self.picked = None
         self.grid()
         self.draw_idle()
@@ -81,7 +96,8 @@ class MplCanvas(FigureCanvasQTAgg):
             for p in parm:
                 ax = self.figure.axes[0]
                 traces = self.plotNetwork(nw, p.toTuple())
-                self.trace2param[traces[0]] = p
+                if traces and len(traces) > 0:
+                    self.trace2param[traces[0]] = p
             self.generate_line_to_legend()
             self.draw_idle()
 
@@ -91,12 +107,15 @@ class MplCanvas(FigureCanvasQTAgg):
             item: NetworkItem = self.networkModel.itemFromIndex(idx)
             for p in item.params():
                 pass
-            self.axes.legend()
             self.generate_line_to_legend()
             self.draw_idle()
 
     def redrawAll(self):
         self.reset()
+        if self.plotMode == 'smith':
+            smith(ax=self.axes(), draw_labels=True, draw_vswr=True)
+        else:
+            self.grid()
         for i in range(self.networkModel.rowCount()):
             idx = self.networkModel.index(i, 0)
             ntwk: NetworkItem = self.networkModel.itemFromIndex(idx)
@@ -105,8 +124,6 @@ class MplCanvas(FigureCanvasQTAgg):
                     traces = self.plotNetwork(ntwk.network(), p.toTuple())
                     if traces and len(traces) > 0:
                         self.trace2param[traces[0]] = p
-        self.axes.legend()
-        self.grid()
         self.generate_line_to_legend()
         self.draw_idle()
 
@@ -114,17 +131,24 @@ class MplCanvas(FigureCanvasQTAgg):
         if isinstance(network, SkNetwork):
             pm = self.plotMode
             prm = network.s
+            ax = self.axes()
             if pm == 'smith':
                 rep = prm
+                val = prm.val[:, param[0], param[1]]
+                lines = self.axes().plot(npy.real(val), npy.imag(val),
+                                         picker=5,
+                                         label="{},S{}{}".format(
+                                             network.name, param[0]+1, param[1]+1)
+                                         )
             elif hasattr(prm, pm):
                 rep = getattr(prm, pm)
+                if param is None:
+                    lines = rep.plot(ax=ax, picker=5)
+                else:
+                    lines = rep.plot(m=param[0], n=param[1], ax=ax, picker=5)
             else:
                 raise Exception("Unknown representation")
-            ax = self.figure.axes[0]
-            if param is None:
-                lines = rep.plot(ax=ax, picker=5)
-            else:
-                lines = rep.plot(m=param[0], n=param[1], ax=ax, picker=5)
+            self._lines.extend(lines)
             return lines
 
     def changePlotMode(self, index):
@@ -145,23 +169,25 @@ class MplCanvas(FigureCanvasQTAgg):
         self.toggleMinorGrid(self.gridMinor)
 
     def toggleMajorGrid(self, b: bool):
-        self.axes.grid(visible=b, which='major')
+        self.axes().grid(visible=b, which='major')
         self.draw_idle()
 
     def toggleMinorGrid(self, b: bool):
-        self.axes.grid(visible=b, which='minor', linestyle='--', linewidth=0.25 * self.default_linewidth)
+        self.axes().grid(visible=b, which='minor', linestyle='--', linewidth=0.25 * self.default_linewidth)
         if b:
-            self.axes.minorticks_on()
+            self.axes().minorticks_on()
         else:
-            self.axes.minorticks_off()
+            self.axes().minorticks_off()
         self.draw_idle()
 
     def generate_line_to_legend(self):
-        ax = self.axes
+        ax = self.axes()
+        if len(self._lines) == 0:
+            return
         legend = ax.legend()
         legend.set_draggable(True)
         self.line2leg = {}
-        for legline, origline in zip(legend.get_lines(), ax.lines):
+        for legline, origline in zip(legend.get_lines(), self._lines):
             legline.set_picker(5)  # Enable picking on the legend line.
             self.line2leg[legline] = (origline, True)
             self.line2leg[origline] = (legline, False)
@@ -177,7 +203,7 @@ class MplCanvas(FigureCanvasQTAgg):
                 self.line2leg[trace][0].set_linewidth(2 * self.default_linewidth)
                 if trace in self.line2leg:  # is an axis entry
                     self.picked = trace
-                else:
+                elif trace in self.line2leg.values():
                     self.picked = self.line2leg[trace]
                 self.pickstate = 1
             else:
