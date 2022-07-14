@@ -8,7 +8,8 @@ from skrf.network import Network as Network1
 from skrf.network2 import Network
 
 from mplcanvas import MplCanvas, plotModes
-from networkitem import NetworkItem
+from networkitem import NetworkItem, ParamItem
+from validatinglineedit import ValidatingLineEdit
 
 
 class DragDropEventHandler:
@@ -44,11 +45,11 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.canvas : MplCanvas = None
+        self.canvas: MplCanvas = None
         self.title = None
         self.toolbar = None
         self.networkModel = None
-        self.selectionModel = None
+        self.selectionModel: QItemSelectionModel = None
 
         self.setupUI()
         self.setupModels()
@@ -74,10 +75,11 @@ class MainWindow(QMainWindow):
         self.horizontalLayout.addWidget(self.toolbar)
         self.horizontalLayout_2.addWidget(self.canvas)
         self.setupPlotSelectorBox()
+        self.setupFrequencyEdits()
 
     def setupModels(self):
         self.networkModel = QtGui.QStandardItemModel()
-        self.networkModel.setHorizontalHeaderLabels(["Name", "Plot"])
+        self.networkModel.setHorizontalHeaderLabels(["Name"])
         self.selectionModel = QItemSelectionModel(self.networkModel)
 
     def setupViews(self):
@@ -95,11 +97,61 @@ class MainWindow(QMainWindow):
         for item in keys:
             self.plotSelectorBox.addItem(item)
 
+    def setupFrequencyEdits(self):
+        regex = QRegularExpression("[0-9]+\.?[0-9]*( [kMGT]?Hz)?")
+        validator = QRegularExpressionValidator(regex)
+        startEdit = ValidatingLineEdit(validate=validator)
+        stopEdit = ValidatingLineEdit(validate=validator)
+        self.horizontalLayout.replaceWidget(self.startFrequencyEdit,
+                                            startEdit)
+        self.horizontalLayout.replaceWidget(self.stopFrequencyEdit,
+                                            stopEdit)
+        self.startFrequencyEdit.setVisible(False)
+        self.stopFrequencyEdit.setVisible(False)
+        self.startFrequencyEdit = startEdit
+        self.stopFrequencyEdit = stopEdit
+        self.startFrequencyEdit.editingFinished.connect(self.frequencyRangeChanged)
+        self.stopFrequencyEdit.editingFinished.connect(self.frequencyRangeChanged)
+
     def reset(self):
         self.title = None
         rowc = self.networkModel.rowCount()
         self.networkModel.invisibleRootItem().removeRows(0, rowc)
         self.canvas.reset()
+
+    def frequencyRangeChanged(self):
+        freq_str = list()
+        freq_str.append(self.startFrequencyEdit.text())
+        freq_str.append(self.stopFrequencyEdit.text())
+
+        units = {'Hz': 1e-9, 'kHz': 1e-6, 'MHz': 1e-3, 'GHz': 1, 'THz': 1e3}
+
+        frequencies = list()
+        unitl = list()
+
+        for string in freq_str:
+            if string == '':
+                self.canvas.setXlimits('','')
+                return
+            unit = 'GHz'  # default unit
+            tok = string.split(" ")
+            if len(tok) > 1:
+                if tok[1]:
+                    unit = tok[1]
+            frequencies.append(tok[0])
+            unitl.append(units[unit])
+
+        if float(frequencies[0])*unitl[0] > float(frequencies[1])*unitl[1]:
+            tmp = frequencies[1]
+            frequencies[1] = frequencies[0]
+            frequencies[0] = tmp
+            tmp = unitl[1]
+            unitl[1] = unitl[0]
+            unitl[0] = tmp
+            self.startFrequencyEdit.setText(frequencies[0])
+            self.stopFrequencyEdit.setText(frequencies[1])
+
+        self.canvas.setXlimits(frequencies[0], frequencies[1]+unit.lower())
 
     def openFileDialog(self):
         filename = QFileDialog.getOpenFileName(filter="Touchstone Files (*.s1p *.s2p *.s3p)")[0]

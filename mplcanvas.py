@@ -23,6 +23,7 @@ plotModes = OrderedDict((
     ('phase (rad)', 'rad'),
     ('real', 're'),
     ('imaginary', 'im'),
+    ('time', 's_time')
 ))
 
 
@@ -51,6 +52,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.grid()
         self.figure.tight_layout()
         self._lines = []
+        self.xlimits = ['','']
 
     def axes(self):
         ax = self.figure.get_axes()
@@ -130,29 +132,43 @@ class MplCanvas(FigureCanvasQTAgg):
     def plotNetwork(self, network: SkNetwork, param: tuple[int, int] = None):
         if isinstance(network, SkNetwork):
             pm = self.plotMode
-            prm = network.s
-            ax = self.axes()
-            if pm == 'smith':
-                rep = prm
-                val = prm.val[:, param[0], param[1]]
-                lines = self.axes().plot(npy.real(val), npy.imag(val),
-                                         picker=5,
-                                         label="{},S{}{}".format(
-                                             network.name, param[0]+1, param[1]+1)
-                                         )
-            elif hasattr(prm, pm):
-                rep = getattr(prm, pm)
+            if pm == 's_time':
+                prm = network.s_time
                 if param is None:
-                    lines = rep.plot(ax=ax, picker=5)
+                    lines = prm.db.plot(ax=self.axes(), picker=5)
                 else:
-                    lines = rep.plot(m=param[0], n=param[1], ax=ax, picker=5)
+                    lines = prm.db.plot(m=param[0], n=param[1], ax=self.axes(), picker=5)
             else:
-                raise Exception("Unknown representation")
+                if self.xlimits[1] != '':
+                    prm = network['{}-{}'.format(self.xlimits[0], self.xlimits[1])].s
+                else:
+                    prm = network.s
+                ax = self.axes()
+                if pm == 'smith':
+                    rep = prm
+                    val = prm.val[:, param[0], param[1]]
+                    lines = self.axes().plot(npy.real(val), npy.imag(val),
+                                             picker=5,
+                                             label="{},S{}{}".format(
+                                                 network.name, param[0]+1, param[1]+1)
+                                             )
+                elif hasattr(prm, pm):
+                    rep = getattr(prm, pm)
+                    if param is None:
+                        lines = rep.plot(ax=ax, picker=5)
+                    else:
+                        lines = rep.plot(m=param[0], n=param[1], ax=ax, picker=5)
+                else:
+                    raise Exception("Unknown representation")
             self._lines.extend(lines)
             return lines
 
     def changePlotMode(self, index):
         self.plotMode = list(plotModes.values())[index]
+        self.redrawAll()
+
+    def setXlimits(self, mini, maxi):
+        self.xlimits = [mini, maxi]
         self.redrawAll()
 
     def selectionChanged(self, selected: QItemSelection, deselected: QItemSelection):

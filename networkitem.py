@@ -7,10 +7,9 @@ from skrf.network2 import Network as SkNetwork
 
 
 class NetworkItem(QStandardItem):
-
     _type = 1516
 
-    def __init__(self, network : SkNetwork):
+    def __init__(self, network: SkNetwork):
         self._network: SkNetwork = network
         self._parameters: dict[tuple[int, int], 'ParamItem'] = {}
         super(QStandardItem, self).__init__()
@@ -39,11 +38,11 @@ class NetworkItem(QStandardItem):
                 prm.append(p)
         return prm
 
-    def enabledParamsTuple(self) -> list[tuple[int,int]]:
+    def enabledParamsTuple(self) -> list[tuple[int, int]]:
         prm = []
         for p in self._parameters.values():
             if p.checkState():
-                prm.append((p.m,p.n))
+                prm.append((p.m, p.n))
         return prm
 
     def params(self):
@@ -67,7 +66,7 @@ class ParamItem(QStandardItem):
         self.setEditable(False)
         self.setCheckable(True)
         self.setCheckState(Qt.Checked)
-        self.setData("S{}{}".format(m+1,n+1),Qt.DisplayRole)
+        self.setData("S{}{}".format(m + 1, n + 1), Qt.DisplayRole)
 
     def __str__(self):
         return self.data(Qt.DisplayRole)
@@ -76,4 +75,4 @@ class ParamItem(QStandardItem):
         return self._trace
 
     def toTuple(self):
-        return (self.m,self.n)
+        return self.m, self.n
