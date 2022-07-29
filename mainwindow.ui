@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>1024</width>
+    <height>768</height>
    </rect>
   </property>
   <property name="acceptDrops">
@@ -118,7 +118,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>1024</width>
      <height>17</height>
     </rect>
    </property>
@@ -148,8 +148,15 @@
     <addaction name="menuShow_Grid"/>
     <addaction name="actionCopy_to_clipboard"/>
    </widget>
+   <widget class="QMenu" name="menuMath">
+    <property name="title">
+     <string>Math</string>
+    </property>
+    <addaction name="actionZeroReflection"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuPlot"/>
+   <addaction name="menuMath"/>
   </widget>
   <action name="actionOpenTouchstoneFile">
    <property name="text">
@@ -224,6 +231,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+C</string>
+   </property>
+  </action>
+  <action name="actionZeroReflection">
+   <property name="text">
+    <string>Set Reflection to 0</string>
    </property>
   </action>
  </widget>

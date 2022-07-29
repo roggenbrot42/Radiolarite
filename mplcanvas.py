@@ -11,6 +11,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from skrf.network2 import Network as SkNetwork
+import skrf
 from skrf.plotting import *
 
 from networkitem import NetworkItem, ParamItem
@@ -23,7 +24,8 @@ plotModes = OrderedDict((
     ('phase (rad)', 'rad'),
     ('real', 're'),
     ('imaginary', 'im'),
-    ('time', 's_time')
+    ('time (dB)', 's_time'),
+    ('Z(t)', 'z_time')
 ))
 
 
@@ -52,7 +54,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.grid()
         self.figure.tight_layout()
         self._lines = []
-        self.xlimits = ['','']
+        self.xlimits = ['', '']
 
     def axes(self):
         ax = self.figure.get_axes()
@@ -126,6 +128,9 @@ class MplCanvas(FigureCanvasQTAgg):
                     traces = self.plotNetwork(ntwk.network(), p.toTuple())
                     if traces and len(traces) > 0:
                         self.trace2param[traces[0]] = p
+        if self.xlimits[1] != '' and self.plotMode in ['z_time', 's_time']:
+            self.axes().set_xlim(float(self.xlimits[0]), float(self.xlimits[1]))
+        self.figure.tight_layout()
         self.generate_line_to_legend()
         self.draw_idle()
 
@@ -138,6 +143,10 @@ class MplCanvas(FigureCanvasQTAgg):
                     lines = prm.db.plot(ax=self.axes(), picker=5)
                 else:
                     lines = prm.db.plot(m=param[0], n=param[1], ax=self.axes(), picker=5)
+            elif pm == 'z_time':
+                nw1 = skrf.Network(s=network.s.val,f=network.frequency.f)
+                nw1 = nw1.extrapolate_to_dc(kind='linear')
+                lines = nw1.s11.plot_z_time_step(window='hamming', ax=self.axes(), picker=5)
             else:
                 if self.xlimits[1] != '':
                     prm = network['{}-{}'.format(self.xlimits[0], self.xlimits[1])].s
@@ -160,11 +169,13 @@ class MplCanvas(FigureCanvasQTAgg):
                         lines = rep.plot(m=param[0], n=param[1], ax=ax, picker=5)
                 else:
                     raise Exception("Unknown representation")
-            self._lines.extend(lines)
+            if lines:
+                self._lines.extend(lines)
             return lines
 
     def changePlotMode(self, index):
         self.plotMode = list(plotModes.values())[index]
+        self.setXlimits('', '')
         self.redrawAll()
 
     def setXlimits(self, mini, maxi):

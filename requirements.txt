@@ -4,3 +4,5 @@ tikzplotlib>=0.9.12
 seaborn>=0.11.2
 PyQt5>=5.15.0
 scikit-rf>=0.19.0
+openpyxl~=3.0.7
+pyparsing~=2.4.7
