@@ -6,16 +6,16 @@ I made this tool for the quick analysis of VNA measurements, as I do quite a lot
 ## Installation
 Requires installed Python >v3.9
 
-```
-python -m venv venv/
-venv/Scripts/activate
-pip install -r requirements.txt
+```console
+$ python -m venv venv/
+$ venv/Scripts/activate
+$ pip install -r requirements.txt
 ```
 ## Usage
 Depending on your OS and configuration, the python command may vary.
 
-```
-python main.py [optional touchstone filename]
+```console
+$ python main.py [optional touchstone filename]
 ```
 
 This program is still in the very early stages of its development. I add features whenever needed.
