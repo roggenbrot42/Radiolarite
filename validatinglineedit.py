@@ -2,8 +2,6 @@ from PyQt5 import QtGui, Qt
 from PyQt5.QtWidgets import QWidget, QLineEdit, QCompleter
 from PyQt5.QtGui import QRegularExpressionValidator, QColor, QPalette, QValidator
 from PyQt5.QtCore import Qt
-from pyparsing import unicode
-
 
 class ValidatingLineEdit(QLineEdit):
     colors = [Qt.red, Qt.yellow, Qt.green]
@@ -19,7 +17,7 @@ class ValidatingLineEdit(QLineEdit):
 
     def changed(self, new_text: str):
         index = 0
-        color_index = self.validate.validate(unicode(new_text), index) #for some reason, this returns a tuple
+        color_index = self.validate.validate(new_text, index) #for some reason, this returns a tuple
         if color_index is None:
             return
         color = QColor(self.colors[color_index[0]]).lighter(196)
