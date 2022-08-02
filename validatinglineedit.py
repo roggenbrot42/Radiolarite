@@ -2,8 +2,6 @@ from PyQt5 import QtGui, Qt
 from PyQt5.QtWidgets import QWidget, QLineEdit, QCompleter
 from PyQt5.QtGui import QRegularExpressionValidator, QColor, QPalette, QValidator
 from PyQt5.QtCore import Qt
-from pyparsing import unicode
-
 
 class ValidatingLineEdit(QLineEdit):
     colors = [Qt.red, Qt.yellow, Qt.green]
