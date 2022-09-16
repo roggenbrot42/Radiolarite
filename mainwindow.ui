@@ -147,12 +147,14 @@
     </widget>
     <addaction name="menuShow_Grid"/>
     <addaction name="actionCopy_to_clipboard"/>
+    <addaction name="actionLegend"/>
    </widget>
    <widget class="QMenu" name="menuMath">
     <property name="title">
      <string>Math</string>
     </property>
     <addaction name="actionZeroReflection"/>
+    <addaction name="actionTime_Domain_Gating"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuPlot"/>
@@ -236,6 +238,16 @@
   <action name="actionZeroReflection">
    <property name="text">
     <string>Set Reflection to 0</string>
+   </property>
+  </action>
+  <action name="actionTime_Domain_Gating">
+   <property name="text">
+    <string>Time Domain Gating</string>
+   </property>
+  </action>
+  <action name="actionLegend">
+   <property name="text">
+    <string>Legend</string>
    </property>
   </action>
  </widget>

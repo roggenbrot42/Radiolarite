@@ -1,3 +1,4 @@
+import skrf.network2
 import tikzplotlib
 from PyQt5 import QtCore, QtWidgets, uic, QtGui
 from PyQt5.QtCore import *
@@ -8,9 +9,16 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navi
 from skrf.network import Network as Network1
 from skrf.network2 import Network
 
+import legendsettings
+import validatinglineedit
 from mplcanvas import MplCanvas, plotModes
 from networkitem import NetworkItem, ParamItem
-from validatinglineedit import ValidatingLineEdit
+from validatinglineedit import ValidatingLineEdit, TimeValue, FrequencyValue
+from plugin.time_gating import TimeGatingDialog
+
+
+def network2to1(network2: skrf.network2.Network) -> skrf.Network:
+    return skrf.Network(s=network2.s.val, f=network2.frequency.f)
 
 
 class DragDropEventHandler:
@@ -42,22 +50,12 @@ class DragDropEventHandler:
         return strings
 
 
-def setupTimeRangeValidator():
-    time_regex = QRegularExpression("[\-]?[0-9]+\.?[0-9]*( [fpnm]?s)?")
-    time_validator: QRegularExpressionValidator = QRegularExpressionValidator(time_regex)
-    return time_validator
-
-
-def setupFrequencyRangeValidator():
-    freq_regex = QRegularExpression("[0-9]+\.?[0-9]*( [kMGT]?Hz)?")
-    freq_validator: QRegularExpressionValidator = QRegularExpressionValidator(freq_regex)
-    return freq_validator
-
-
 class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.tdr_dialog = None
+        self.legend_dialog = None
         self.canvas: MplCanvas = None
         self.title = None
         self.toolbar = None
@@ -77,6 +75,10 @@ class MainWindow(QMainWindow):
         self.actionGridMinor.toggled.connect(self.canvas.toggleMinorGrid)
         self.actionCopy_to_clipboard.triggered.connect(self.copyToClipboard)
         self.actionZeroReflection.triggered.connect(self.zeroReflection)
+        self.actionTime_Domain_Gating.triggered.connect(self.triggerTDGating)
+        self.actionLegend.triggered.connect(self.legend_dialog.show)
+        self.legend_dialog.columnsChanged.connect(self.canvas.legendChange)
+        self.tdr_dialog.resultChanged.connect(self.tdrGateNetwork)
 
     def setupUI(self):
         uic.loadUi('mainwindow.ui', self)
@@ -91,6 +93,8 @@ class MainWindow(QMainWindow):
         self.horizontalLayout_2.addWidget(self.canvas)
         self.setupPlotSelectorBox()
         self.setupRangeEdits()
+        self.legend_dialog = legendsettings.LegendSettingsDialog(None)
+        self.tdr_dialog = TimeGatingDialog(parent=None)
 
     def setupModels(self):
         self.networkModel = QtGui.QStandardItemModel()
@@ -113,7 +117,7 @@ class MainWindow(QMainWindow):
             self.plotSelectorBox.addItem(item)
 
     def setupRangeEdits(self):
-        freq_validator = setupFrequencyRangeValidator()
+        freq_validator = validatinglineedit.setupFrequencyRangeValidator()
         start_edit = ValidatingLineEdit(validate=freq_validator)
         stop_edit = ValidatingLineEdit(validate=freq_validator)
         self.horizontalLayout.replaceWidget(self.startFrequencyEdit,
@@ -145,14 +149,13 @@ class MainWindow(QMainWindow):
         self.startFrequencyEdit.setText("")
         self.stopFrequencyEdit.setText("")
         if self.getPlotModeType() == 'time':
-            validator = setupTimeRangeValidator()
+            validator = validatinglineedit.setupTimeRangeValidator()
             self.startFrequencyEdit.setValidator(validator)
             self.stopFrequencyEdit.setValidator(validator)
         else:
-            validator = setupFrequencyRangeValidator()
+            validator = validatinglineedit.setupFrequencyRangeValidator()
             self.startFrequencyEdit.setValidator(validator)
             self.stopFrequencyEdit.setValidator(validator)
-
 
     def rangeChanged(self):
         range_strs = list()
@@ -183,7 +186,7 @@ class MainWindow(QMainWindow):
                 if string == '':
                     self.canvas.setXlimits('', '')
                     return
-                unit = 'ns' #default unit
+                unit = 'ns'  # default unit
                 tok = string.split(" ")
                 if len(tok) > 1:
                     if tok[1]:
@@ -191,7 +194,7 @@ class MainWindow(QMainWindow):
                 ranges.append(tok[0])
                 unitl.append(units[unit])
 
-        if float(ranges[0])*unitl[0] > float(ranges[1])*unitl[1]:
+        if float(ranges[0]) * unitl[0] > float(ranges[1]) * unitl[1]:
             tmp = ranges[1]
             ranges[1] = ranges[0]
             ranges[0] = tmp
@@ -202,12 +205,12 @@ class MainWindow(QMainWindow):
             self.stopFrequencyEdit.setText(ranges[1])
 
         if self.getPlotModeType() == 'frequency':
-            self.canvas.setXlimits(ranges[0], ranges[1]+unit.lower())
+            self.canvas.setXlimits(ranges[0], ranges[1] + unit.lower())
         else:
-            self.canvas.setXlimits(float(ranges[0])*unitl[0], float(ranges[1])*unitl[1])
+            self.canvas.setXlimits(float(ranges[0]) * unitl[0], float(ranges[1]) * unitl[1])
 
     def openFileDialog(self):
-        filename = QFileDialog.getOpenFileName(filter="Touchstone Files (*.s1p *.s2p *.s3p)")[0]
+        filename = QFileDialog.getOpenFileName(filter="Touchstone Files (*.s1p *.s2p *.s3p *.s4p)")[0]
         if filename:
             filenames = list()
             filenames.append(filename)
@@ -229,25 +232,67 @@ class MainWindow(QMainWindow):
         pixmap = self.canvas.grab()
         qApp.clipboard().setPixmap(pixmap)
 
-    def zeroReflection(self):
+    def getCurrentNetworkItem(self) -> NetworkItem:
         index_list = self.selectionModel.selectedIndexes()
+        network = None
+        network_item = None
         if len(index_list) > 0:
             index = index_list[0]
             item = self.networkModel.itemFromIndex(index)
+
             if isinstance(item, ParamItem):
                 network_item = item.parent()
                 network = network_item.network()
             elif isinstance(item, NetworkItem):
                 network_item = item
                 network = network_item.network()
+        return network_item
 
-            (l, m, n) = network.s.val.shape
+    def getCurrentNetwork(self) -> Network:
+        return self.getCurrentNetworkItem().network()
+
+    def zeroReflection(self):
+        network_item = self.getCurrentNetworkItem()
+
+        if network_item:
+            network = network_item.network()
+            (l, m, n) = network_item.n.s.val.shape
             if m > 1:
                 s11 = network.s.val[:, 0, 0]
                 network.s.val[:, 1, 0] = network.s.val[:, 1, 0] + s11
                 s11.fill(1e-20)
                 network_item.params()[0].setCheckState(Qt.Unchecked)
                 self.canvas.redrawAll()
+
+    def triggerTDGating(self):
+        network_item = self.getCurrentNetworkItem()
+        if network_item is None:
+            QMessageBox().critical(self, "Error", "No Network selected")
+            return
+        #self.tdr_dialog.resize(480, 320)
+        self.tdr_dialog.show()
+
+    def tdrGateNetwork(self, tmp: dict):
+        t_center = tmp['center']
+        t_span = tmp['span']
+        window = tmp['window'].lower()
+        nw = self.getCurrentNetworkItem().network()
+        nwl = list()
+        for pt in nw.port_tuples:
+            network = skrf.Network(s=nw.s[:, pt[0], pt[1]], f=nw.frequency.f_scaled)
+            try:
+                gated_network = network.s11.time_gate(center=t_center.num, span=t_span.num, window=window)
+            except ValueError:
+                QMessageBox().critical(self, "Window not supported", "Window not yet supported, pick another one.")
+                return
+
+            gated_network.name = nw.name + ' (gated)'
+            nwl.append(gated_network)
+        combined_network = skrf.network.n_oneports_2_nport(nwl, name=nw.name+' (gated)')
+        nw2 = Network.from_ntwkv1(combined_network)
+        nw2.frequency.unit = 'GHz'
+        nwItem = NetworkItem(nw2)
+        self.networkModel.invisibleRootItem().appendRow(nwItem)
 
     def readFile(self, filename):
         import os

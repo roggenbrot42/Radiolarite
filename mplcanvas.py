@@ -15,6 +15,7 @@ import skrf
 from skrf.plotting import *
 
 from networkitem import NetworkItem, ParamItem
+from validatinglineedit import TimeValue
 
 plotModes = OrderedDict((
     ('decibels', 'db'),
@@ -135,6 +136,7 @@ class MplCanvas(FigureCanvasQTAgg):
         self.draw_idle()
 
     def plotNetwork(self, network: SkNetwork, param: tuple[int, int] = None):
+        ax = self.axes()
         if isinstance(network, SkNetwork):
             pm = self.plotMode
             if pm == 's_time':
@@ -144,15 +146,14 @@ class MplCanvas(FigureCanvasQTAgg):
                 else:
                     lines = prm.db.plot(m=param[0], n=param[1], ax=self.axes(), picker=5)
             elif pm == 'z_time':
-                nw1 = skrf.Network(s=network.s.val,f=network.frequency.f)
+                nw1 = skrf.Network(s=network.s.val, f=network.frequency.f)
                 nw1 = nw1.extrapolate_to_dc(kind='linear')
-                lines = nw1.s11.plot_z_time_step(window='hamming', ax=self.axes(), picker=5)
+                lines = nw1.s11.plot_z_time_step(window='hamming', ax=self.axes(), picker=5, label=network.name)
             else:
                 if self.xlimits[1] != '':
                     prm = network['{}-{}'.format(self.xlimits[0], self.xlimits[1])].s
                 else:
                     prm = network.s
-                ax = self.axes()
                 if pm == 'smith':
                     rep = prm
                     val = prm.val[:, param[0], param[1]]
@@ -169,6 +170,7 @@ class MplCanvas(FigureCanvasQTAgg):
                         lines = rep.plot(m=param[0], n=param[1], ax=ax, picker=5)
                 else:
                     raise Exception("Unknown representation")
+
             if lines:
                 self._lines.extend(lines)
             return lines
@@ -205,6 +207,10 @@ class MplCanvas(FigureCanvasQTAgg):
             self.axes().minorticks_on()
         else:
             self.axes().minorticks_off()
+        self.draw_idle()
+
+    def legendChange(self, columns: int):
+        self.axes().legend(ncol = columns)
         self.draw_idle()
 
     def generate_line_to_legend(self):

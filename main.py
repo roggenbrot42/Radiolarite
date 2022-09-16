@@ -8,9 +8,10 @@ from mainwindow import MainWindow
 myappid = u'roggenbrot42.radiolarite'  # arbitrary string
 
 if platform.system() == 'Windows':
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid) #group in taskbar
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)  # group in taskbar
 
 matplotlib.use('Qt5Agg')
+
 
 def window():
     app = QApplication(sys.argv)
