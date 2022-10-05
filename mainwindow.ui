@@ -129,6 +129,7 @@
     <addaction name="actionNew"/>
     <addaction name="actionOpenTouchstoneFile"/>
     <addaction name="actionExportFigure"/>
+    <addaction name="actionExportCSV"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menuPlot">
@@ -248,6 +249,11 @@
   <action name="actionLegend">
    <property name="text">
     <string>Legend</string>
+   </property>
+  </action>
+  <action name="actionExportCSV">
+   <property name="text">
+    <string>Export CSV</string>
    </property>
   </action>
  </widget>

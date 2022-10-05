@@ -1,3 +1,5 @@
+from fileinput import filename
+
 import skrf.network2
 import tikzplotlib
 from PyQt5 import QtCore, QtWidgets, uic, QtGui
@@ -8,6 +10,9 @@ from PyQt5.QtGui import *
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navi
 from skrf.network import Network as Network1
 from skrf.network2 import Network
+import pandas as pd
+
+import csv
 
 import legendsettings
 import validatinglineedit
@@ -69,6 +74,7 @@ class MainWindow(QMainWindow):
         self.actionNew.triggered.connect(self.reset)
         self.actionOpenTouchstoneFile.triggered.connect(self.openFileDialog)
         self.actionExportFigure.triggered.connect(self.exportFigure)
+        self.actionExportCSV.triggered.connect(self.exportCSV)
         self.plotSelectorBox.currentIndexChanged.connect(self.canvas.changePlotMode)
         self.plotSelectorBox.currentIndexChanged.connect(self.changePlotMode)
         self.actionGridMajor.toggled.connect(self.canvas.toggleMajorGrid)
@@ -228,6 +234,22 @@ class MainWindow(QMainWindow):
             f.write(code)
             f.close()
 
+    def exportCSV(self):
+        if not self.canvas:
+            return
+        currentNetwork = self.getCurrentNetwork()
+        if currentNetwork:
+            filenames = QFileDialog.getSaveFileName(caption="Save to CSV", directory=currentNetwork.name, filter="CSV files (*.csv)")
+            if not filenames or len(filenames) < 2 or filenames[0] == '':
+                return
+            nw1 = skrf.Network(name=currentNetwork.name, s=currentNetwork.s.val, f=currentNetwork.frequency.f_scaled, f_unit=currentNetwork.frequency.unit)
+            dataframe = nw1.to_dataframe(attrs=['s_db'])
+            dataframe.index.name = 'Frequency ({})'.format(currentNetwork.frequency.unit)
+            try:
+                dataframe.to_csv(filenames[0], sep=' ')#quoting=csv.QUOTE_NONE, escapechar="\\")
+            except ValueError as e:
+                print(e)
+
     def copyToClipboard(self):
         pixmap = self.canvas.grab()
         qApp.clipboard().setPixmap(pixmap)
@@ -249,7 +271,11 @@ class MainWindow(QMainWindow):
         return network_item
 
     def getCurrentNetwork(self) -> Network:
-        return self.getCurrentNetworkItem().network()
+        nwIt = self.getCurrentNetworkItem()
+        if nwIt:
+            return nwIt.network()
+        else:
+            return None
 
     def zeroReflection(self):
         network_item = self.getCurrentNetworkItem()
