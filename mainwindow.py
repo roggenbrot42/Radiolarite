@@ -16,6 +16,7 @@ import csv
 
 import legendsettings
 import validatinglineedit
+from networkview import NetworkView
 from mplcanvas import MplCanvas, plotModes
 from networkitem import NetworkItem, ParamItem
 from validatinglineedit import ValidatingLineEdit, TimeValue, FrequencyValue
@@ -61,41 +62,33 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.tdr_dialog = None
         self.legend_dialog = None
+        self.networkView = None
         self.canvas: MplCanvas = None
         self.title = None
         self.toolbar = None
         self.networkModel = None
         self.selectionModel: QItemSelectionModel = None
+        self.treeViewMenu : QMenu = None
 
         self.setupUI()
         self.setupModels()
         self.setupViews()
-
-        self.actionNew.triggered.connect(self.reset)
-        self.actionOpenTouchstoneFile.triggered.connect(self.openFileDialog)
-        self.actionExportFigure.triggered.connect(self.exportFigure)
-        self.actionExportCSV.triggered.connect(self.exportCSV)
-        self.plotSelectorBox.currentIndexChanged.connect(self.canvas.changePlotMode)
-        self.plotSelectorBox.currentIndexChanged.connect(self.changePlotMode)
-        self.actionGridMajor.toggled.connect(self.canvas.toggleMajorGrid)
-        self.actionGridMinor.toggled.connect(self.canvas.toggleMinorGrid)
-        self.actionCopy_to_clipboard.triggered.connect(self.copyToClipboard)
-        self.actionZeroReflection.triggered.connect(self.zeroReflection)
-        self.actionTime_Domain_Gating.triggered.connect(self.triggerTDGating)
-        self.actionLegend.triggered.connect(self.legend_dialog.show)
-        self.legend_dialog.columnsChanged.connect(self.canvas.legendChange)
-        self.tdr_dialog.resultChanged.connect(self.tdrGateNetwork)
+        self.setupMenus()
 
     def setupUI(self):
         uic.loadUi('mainwindow.ui', self)
         self.setWindowIcon(QtGui.QIcon('Q.png'))
+        self.networkView = QTreeView()
+        self.networkView.setSizePolicy(QSizePolicy(QSizePolicy.Preferred,QSizePolicy.Preferred))
         self.canvas = MplCanvas(parent=self,
                                 gridMajor=self.actionGridMajor.isChecked(),
                                 gridMinor=self.actionGridMinor.isChecked())
+        self.canvas.setSizePolicy(QSizePolicy(QSizePolicy.MinimumExpanding,QSizePolicy.Preferred))
         self.toolbar = Navi(self.canvas, self.centralwidget)
         self.canvas.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.canvas.setFocus()
         self.horizontalLayout.addWidget(self.toolbar)
+        self.horizontalLayout_2.addWidget(self.networkView)
         self.horizontalLayout_2.addWidget(self.canvas)
         self.setupPlotSelectorBox()
         self.setupRangeEdits()
@@ -110,12 +103,39 @@ class MainWindow(QMainWindow):
     def setupViews(self):
         self.canvas.setModel(self.networkModel)
         self.canvas.setSelectionModel(self.selectionModel)
-        self.treeView.setModel(self.networkModel)
-        self.treeView.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.treeView.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.treeView.setSelectionModel(self.selectionModel)
-        self.treeView.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.treeView.setAnimated(True)
+        self.networkView.setModel(self.networkModel)
+        self.networkView.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.networkView.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.networkView.setSelectionModel(self.selectionModel)
+        self.networkView.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.networkView.setAnimated(True)
+
+    def setupMenus(self):
+        self.actionNew.triggered.connect(self.reset)
+        self.actionOpenTouchstoneFile.triggered.connect(self.openFileDialog)
+        self.actionExportFigure.triggered.connect(self.exportFigure)
+        self.actionExportCSV.triggered.connect(self.exportCSV)
+        self.plotSelectorBox.currentIndexChanged.connect(self.canvas.changePlotMode)
+        self.plotSelectorBox.currentIndexChanged.connect(self.changePlotMode)
+        self.actionGridMajor.toggled.connect(self.canvas.toggleMajorGrid)
+        self.actionGridMinor.toggled.connect(self.canvas.toggleMinorGrid)
+        self.actionCopy_to_clipboard.triggered.connect(self.copyToClipboard)
+        self.actionTime_Domain_Gating.triggered.connect(self.triggerTDGating)
+        self.actionLegend.triggered.connect(self.legend_dialog.show)
+        self.legend_dialog.columnsChanged.connect(self.canvas.legendChange)
+        self.tdr_dialog.resultChanged.connect(self.tdrGateNetwork)
+        self.networkViewMenu = QMenu(self)
+        self.networkViewMenu.addAction(QAction("Disable"))
+        self.networkViewMenu.addAction(QAction("Delete"))
+        self.networkView.customContextMenuRequested.connect(self.networkViewMenuRequested)
+
+
+
+    def networkViewMenuRequested(self, pos : QPoint):
+        index = self.networkView.indexAt(pos)
+        self.networkViewMenu.popup(self.networkView.viewport().mapToGlobal(pos))
+        print("Context Menu Request at {}".format(pos))
+        #self.networkViewMenu.exec(QPoint(0,0))
 
     def setupPlotSelectorBox(self):
         keys = list(plotModes.keys())
@@ -239,16 +259,27 @@ class MainWindow(QMainWindow):
             return
         currentNetwork = self.getCurrentNetwork()
         if currentNetwork:
-            filenames = QFileDialog.getSaveFileName(caption="Save to CSV", directory=currentNetwork.name, filter="CSV files (*.csv)")
+            filenames = QFileDialog.getSaveFileName(caption="Save to CSV", directory=currentNetwork.name,
+                                                    filter="CSV files (*.csv)")
             if not filenames or len(filenames) < 2 or filenames[0] == '':
                 return
-            nw1 = skrf.Network(name=currentNetwork.name, s=currentNetwork.s.val, f=currentNetwork.frequency.f_scaled, f_unit=currentNetwork.frequency.unit)
-            dataframe = nw1.to_dataframe(attrs=['s_db'])
+            nw1 = skrf.Network(name=currentNetwork.name, s=currentNetwork.s.val, f=currentNetwork.frequency.f_scaled,
+                               f_unit=currentNetwork.frequency.unit)
+            index = self.plotSelectorBox.currentIndex()
+            plot_mode = list(plotModes.values())[index]
+            attr = "s_{}".format(plot_mode)
+            try:
+                dataframe = nw1.to_dataframe(attrs=[attr])
+            except AttributeError as e:
+                QMessageBox().critical(self, "Error", "Attribute Error {}.".format(e))
+                return
             dataframe.index.name = 'Frequency ({})'.format(currentNetwork.frequency.unit)
             try:
-                dataframe.to_csv(filenames[0], sep=' ')#quoting=csv.QUOTE_NONE, escapechar="\\")
+                dataframe.to_csv(filenames[0], sep=' ')  # quoting=csv.QUOTE_NONE, escapechar="\\")
             except ValueError as e:
                 print(e)
+        else:
+            QMessageBox().critical(self, "Error", "No Network selected")
 
     def copyToClipboard(self):
         pixmap = self.canvas.grab()
@@ -277,25 +308,12 @@ class MainWindow(QMainWindow):
         else:
             return None
 
-    def zeroReflection(self):
-        network_item = self.getCurrentNetworkItem()
-
-        if network_item:
-            network = network_item.network()
-            (l, m, n) = network_item.n.s.val.shape
-            if m > 1:
-                s11 = network.s.val[:, 0, 0]
-                network.s.val[:, 1, 0] = network.s.val[:, 1, 0] + s11
-                s11.fill(1e-20)
-                network_item.params()[0].setCheckState(Qt.Unchecked)
-                self.canvas.redrawAll()
-
     def triggerTDGating(self):
         network_item = self.getCurrentNetworkItem()
         if network_item is None:
             QMessageBox().critical(self, "Error", "No Network selected")
             return
-        #self.tdr_dialog.resize(480, 320)
+        # self.tdr_dialog.resize(480, 320)
         self.tdr_dialog.show()
 
     def tdrGateNetwork(self, tmp: dict):
@@ -314,7 +332,7 @@ class MainWindow(QMainWindow):
 
             gated_network.name = nw.name + ' (gated)'
             nwl.append(gated_network)
-        combined_network = skrf.network.n_oneports_2_nport(nwl, name=nw.name+' (gated)')
+        combined_network = skrf.network.n_oneports_2_nport(nwl, name=nw.name + ' (gated)')
         nw2 = Network.from_ntwkv1(combined_network)
         nw2.frequency.unit = 'GHz'
         nwItem = NetworkItem(nw2)
@@ -331,7 +349,7 @@ class MainWindow(QMainWindow):
         root = self.networkModel.invisibleRootItem()
         nwItem = NetworkItem(nw)
         root.appendRow(nwItem)
-        self.treeView.expandAll()
+        self.networkView.expandAll()
 
     def readFiles(self, strings):
         try:

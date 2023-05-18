@@ -82,31 +82,6 @@
         <property name="spacing">
          <number>1</number>
         </property>
-        <item>
-         <widget class="QTreeView" name="treeView">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>150</width>
-            <height>0</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>310</width>
-            <height>16777215</height>
-           </size>
-          </property>
-          <property name="selectionMode">
-           <enum>QAbstractItemView::ExtendedSelection</enum>
-          </property>
-         </widget>
-        </item>
        </layout>
       </item>
      </layout>
@@ -154,7 +129,6 @@
     <property name="title">
      <string>Math</string>
     </property>
-    <addaction name="actionZeroReflection"/>
     <addaction name="actionTime_Domain_Gating"/>
    </widget>
    <addaction name="menuFile"/>

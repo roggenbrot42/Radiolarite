@@ -15,7 +15,7 @@ class NetworkItem(QStandardItem):
         super(QStandardItem, self).__init__()
         self._makeChildren()
         self.setData(network.name, Qt.DisplayRole)
-        self.setSelectable(False)
+        self.setSelectable(True)
 
     def type(self) -> int:
         return self._type
