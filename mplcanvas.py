@@ -109,11 +109,18 @@ class MplCanvas(FigureCanvasQTAgg):
     def removeTrace(self, parent: QModelIndex, first: int, last: int):
         for row in range(first, last + 1):
             idx = self.networkModel.index(row, 0)
-            item: NetworkItem = self.networkModel.itemFromIndex(idx)
-            for p in item.params():
-                pass
-            self.generate_line_to_legend()
-            self.draw_idle()
+            item = self.networkModel.itemFromIndex(idx)
+            if type(item) == ParamItem:
+                item = item.parent()
+            params = item.enabledParams()
+            for trace in self.trace2param.keys():
+                if self.trace2param[trace] in params:
+                    trace.remove()
+                    if trace == self.picked:
+                        self.pickstate = 0
+                        self.picked = None
+        self.generate_line_to_legend()
+        self.draw_idle()
 
     def redrawAll(self):
         self.reset()
@@ -176,8 +183,13 @@ class MplCanvas(FigureCanvasQTAgg):
             return lines
 
     def changePlotMode(self, index):
+        oldmode = self.plotMode
         self.plotMode = list(plotModes.values())[index]
-        self.setXlimits('', '')
+        time_modes = ['s_time', 'z_time']
+        if (oldmode not in time_modes and self.plotMode not in time_modes) or (oldmode in time_modes and self.plotMode in time_modes):
+            pass
+        else:
+            self.setXlimits('', '')
         self.redrawAll()
 
     def setXlimits(self, mini, maxi):
@@ -281,7 +293,7 @@ class MplCanvas(FigureCanvasQTAgg):
                 param = self.trace2param[self.picked]
                 self.picked = None
                 self.pickstate = 0
-                param.setCheckState(Qt.Unchecked)
+                param.disable()
             except ValueError:
                 print("picked error: {}".format(self.picked))
         elif event.key == 'f2' and self.picked is not None:

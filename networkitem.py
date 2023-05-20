@@ -45,6 +45,16 @@ class NetworkItem(QStandardItem):
                 prm.append((p.m, p.n))
         return prm
 
+    def toggleEnabled(self, state : bool):
+        for p in self._parameters.values():
+            p.setCheckState(state)
+
+    def disable(self) -> None:
+        self.toggleEnabled(False)
+
+    def enable(self) -> None:
+        self.toggleEnabled(True)
+
     def params(self):
         return list(self._parameters.values())
 
@@ -76,3 +86,10 @@ class ParamItem(QStandardItem):
 
     def toTuple(self):
         return self.m, self.n
+
+    def disable(self):
+        self.setCheckState(False)
+
+    def enable(self):
+        self.setCheckState(True)
+

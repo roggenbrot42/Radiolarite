@@ -68,8 +68,6 @@ class MainWindow(QMainWindow):
         self.toolbar = None
         self.networkModel = None
         self.selectionModel: QItemSelectionModel = None
-        self.treeViewMenu : QMenu = None
-
         self.setupUI()
         self.setupModels()
         self.setupViews()
@@ -78,7 +76,7 @@ class MainWindow(QMainWindow):
     def setupUI(self):
         uic.loadUi('mainwindow.ui', self)
         self.setWindowIcon(QtGui.QIcon('Q.png'))
-        self.networkView = QTreeView()
+        self.networkView = NetworkView()
         self.networkView.setSizePolicy(QSizePolicy(QSizePolicy.Preferred,QSizePolicy.Preferred))
         self.canvas = MplCanvas(parent=self,
                                 gridMajor=self.actionGridMajor.isChecked(),
@@ -107,7 +105,7 @@ class MainWindow(QMainWindow):
         self.networkView.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.networkView.setSelectionMode(QAbstractItemView.SingleSelection)
         self.networkView.setSelectionModel(self.selectionModel)
-        self.networkView.setContextMenuPolicy(Qt.CustomContextMenu)
+        #self.networkView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.networkView.setAnimated(True)
 
     def setupMenus(self):
@@ -124,18 +122,6 @@ class MainWindow(QMainWindow):
         self.actionLegend.triggered.connect(self.legend_dialog.show)
         self.legend_dialog.columnsChanged.connect(self.canvas.legendChange)
         self.tdr_dialog.resultChanged.connect(self.tdrGateNetwork)
-        self.networkViewMenu = QMenu(self)
-        self.networkViewMenu.addAction(QAction("Disable"))
-        self.networkViewMenu.addAction(QAction("Delete"))
-        self.networkView.customContextMenuRequested.connect(self.networkViewMenuRequested)
-
-
-
-    def networkViewMenuRequested(self, pos : QPoint):
-        index = self.networkView.indexAt(pos)
-        self.networkViewMenu.popup(self.networkView.viewport().mapToGlobal(pos))
-        print("Context Menu Request at {}".format(pos))
-        #self.networkViewMenu.exec(QPoint(0,0))
 
     def setupPlotSelectorBox(self):
         keys = list(plotModes.keys())
@@ -172,8 +158,8 @@ class MainWindow(QMainWindow):
             return 'frequency'
 
     def changePlotMode(self, index):
-        self.startFrequencyEdit.setText("")
-        self.stopFrequencyEdit.setText("")
+        oldstart = self.startFrequencyEdit.text()
+        oldstop = self.stopFrequencyEdit.text()
         if self.getPlotModeType() == 'time':
             validator = validatinglineedit.setupTimeRangeValidator()
             self.startFrequencyEdit.setValidator(validator)
@@ -182,6 +168,14 @@ class MainWindow(QMainWindow):
             validator = validatinglineedit.setupFrequencyRangeValidator()
             self.startFrequencyEdit.setValidator(validator)
             self.stopFrequencyEdit.setValidator(validator)
+
+        pos = 0
+        if validator.validate(oldstart,pos) == QValidator.Acceptable and validator.validate(oldstop,pos) == QValidator.Acceptable:
+            self.startFrequencyEdit.setText(oldstart)
+            self.stopFrequencyEdit.setText(oldstop)
+        else:
+            self.startFrequencyEdit.setText('')
+            self.stopFrequencyEdit.setText('')
 
     def rangeChanged(self):
         range_strs = list()
@@ -206,7 +200,7 @@ class MainWindow(QMainWindow):
                 ranges.append(tok[0])
                 unitl.append(units[unit])
         else:
-            units = {'fs': 1e-15, 'ps': 1e-12, 'ns': 1e-9, 'ms': 1e-6, 's': 1}
+            units = {'fs': 1e-6, 'ps': 1e-3, 'ns': 1, 'µs': 1e3, 'mus': 1e3, 'ms': 1e6, 's': 1e9}
 
             for string in range_strs:
                 if string == '':
