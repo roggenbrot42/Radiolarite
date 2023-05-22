@@ -7,7 +7,7 @@ from PyQt5.QtCore import QRegularExpression
 
 
 def setupTimeRangeValidator():
-    time_regex = QRegularExpression("[\-]?[0-9]+\.?[0-9]*( [fpnm]?s)?")
+    time_regex = QRegularExpression("[\-]?[0-9]+\.?[0-9]*(\s([fpnmµ]|mu)?s)?")
     time_validator: QRegularExpressionValidator = QRegularExpressionValidator(time_regex)
     return time_validator
 

@@ -15,7 +15,7 @@ class NetworkItem(QStandardItem):
         super(QStandardItem, self).__init__()
         self._makeChildren()
         self.setData(network.name, Qt.DisplayRole)
-        self.setSelectable(False)
+        self.setSelectable(True)
 
     def type(self) -> int:
         return self._type
@@ -44,6 +44,16 @@ class NetworkItem(QStandardItem):
             if p.checkState():
                 prm.append((p.m, p.n))
         return prm
+
+    def toggleEnabled(self, state : bool):
+        for p in self._parameters.values():
+            p.setCheckState(state)
+
+    def disable(self) -> None:
+        self.toggleEnabled(False)
+
+    def enable(self) -> None:
+        self.toggleEnabled(True)
 
     def params(self):
         return list(self._parameters.values())
@@ -76,3 +86,10 @@ class ParamItem(QStandardItem):
 
     def toTuple(self):
         return self.m, self.n
+
+    def disable(self):
+        self.setCheckState(False)
+
+    def enable(self):
+        self.setCheckState(True)
+
