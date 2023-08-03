@@ -43,4 +43,4 @@ class TimeGatingDialog(QWidget):
 
 
 def plugin_main():
-    print("module loaded")
+    print("TDR module loaded")

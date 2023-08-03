@@ -1,21 +1,18 @@
 from collections import OrderedDict
 
 import matplotlib
-import openpyxl.drawing.image
+import skrf
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
-from matplotlib import axes
 from matplotlib.backend_bases import MouseButton
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from skrf.network2 import Network as SkNetwork
-import skrf
 from skrf.plotting import *
 
 from networkitem import NetworkItem, ParamItem
-from validatinglineedit import TimeValue
 
 plotModes = OrderedDict((
     ('decibels', 'db'),
@@ -154,7 +151,7 @@ class MplCanvas(FigureCanvasQTAgg):
                     lines = prm.db.plot(m=param[0], n=param[1], ax=self.axes(), picker=5)
             elif pm == 'z_time':
                 nw1 = skrf.Network(s=network.s.val, f=network.frequency.f)
-                nw1 = nw1.extrapolate_to_dc(kind='linear')
+                nw1 = nw1.extrapolate_to_dc(kind='cubic')
                 lines = nw1.s11.plot_z_time_step(window='hamming', ax=self.axes(), picker=5, label=network.name)
             else:
                 if self.xlimits[1] != '':
@@ -297,10 +294,10 @@ class MplCanvas(FigureCanvasQTAgg):
             except ValueError:
                 print("picked error: {}".format(self.picked))
         elif event.key == 'f2' and self.picked is not None:
-            h, l = self.axes.get_legend_handles_labels()
+            h, l = self.axes().get_legend_handles_labels()
             index = self.figure.axes[0].lines.index(self.picked)
             (text, result) = QInputDialog.getText(self, 'Enter new Label', 'Label', text=l[index])
             if text:
                 l[index] = text
-                self.axes.legend(h, l)
+                self.axes().legend(h, l)
                 self.draw_idle()

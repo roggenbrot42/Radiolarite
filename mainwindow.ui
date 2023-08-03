@@ -103,6 +103,7 @@
     </property>
     <addaction name="actionNew"/>
     <addaction name="actionOpenTouchstoneFile"/>
+    <addaction name="actionSaveTouchstone"/>
     <addaction name="actionExportFigure"/>
     <addaction name="actionExportCSV"/>
     <addaction name="actionExit"/>
@@ -125,15 +126,19 @@
     <addaction name="actionCopy_to_clipboard"/>
     <addaction name="actionLegend"/>
    </widget>
-   <widget class="QMenu" name="menuMath">
+   <widget class="QMenu" name="menuNetwork">
     <property name="title">
-     <string>Math</string>
+     <string>Network</string>
     </property>
     <addaction name="actionTime_Domain_Gating"/>
+    <addaction name="actionCascadeNetworks"/>
+    <addaction name="actionChopInHalf"/>
+    <addaction name="actionSubnetwork"/>
+    <addaction name="actionDeembedding"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuPlot"/>
-   <addaction name="menuMath"/>
+   <addaction name="menuNetwork"/>
   </widget>
   <action name="actionOpenTouchstoneFile">
    <property name="text">
@@ -210,14 +215,29 @@
     <string>Ctrl+C</string>
    </property>
   </action>
-  <action name="actionZeroReflection">
-   <property name="text">
-    <string>Set Reflection to 0</string>
-   </property>
-  </action>
   <action name="actionTime_Domain_Gating">
    <property name="text">
     <string>Time Domain Gating</string>
+   </property>
+  </action>
+  <action name="actionCascadeNetworks">
+   <property name="text">
+    <string>Cascade Networks</string>
+   </property>
+  </action>
+  <action name="actionChopInHalf">
+   <property name="text">
+    <string>Chop Network in half</string>
+   </property>
+  </action>
+  <action name="actionSubnetwork">
+   <property name="text">
+    <string>Subnetwork</string>
+   </property>
+  </action>
+  <action name="actionDeembedding">
+   <property name="text">
+    <string>Deembedding</string>
    </property>
   </action>
   <action name="actionLegend">
@@ -228,6 +248,11 @@
   <action name="actionExportCSV">
    <property name="text">
     <string>Export CSV</string>
+   </property>
+  </action>
+  <action name="actionSaveTouchstone">
+   <property name="text">
+    <string>Save Touchstone</string>
    </property>
   </action>
  </widget>

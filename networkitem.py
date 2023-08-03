@@ -76,6 +76,7 @@ class ParamItem(QStandardItem):
         self.setEditable(False)
         self.setCheckable(True)
         self.setCheckState(Qt.Checked)
+        self.setSelectable(True)
         self.setData("S{}{}".format(m + 1, n + 1), Qt.DisplayRole)
 
     def __str__(self):

@@ -1,30 +1,27 @@
-from fileinput import filename
-
 import skrf.network2
 import tikzplotlib
 from PyQt5 import QtCore, QtWidgets, uic, QtGui
 from PyQt5.QtCore import *
-from PyQt5.QtGui import QRegularExpressionValidator
-from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navi
+from skrf.calibration import IEEEP370_SE_ZC_2xThru
 from skrf.network import Network as Network1
 from skrf.network2 import Network
-import pandas as pd
-
-import csv
 
 import legendsettings
 import validatinglineedit
-from networkview import NetworkView
+import subnetwork
 from mplcanvas import MplCanvas, plotModes
 from networkitem import NetworkItem, ParamItem
-from validatinglineedit import ValidatingLineEdit, TimeValue, FrequencyValue
+from networkview import NetworkView
+from plugin.deembedding import DeembeddingDialog
 from plugin.time_gating import TimeGatingDialog
+from validatinglineedit import ValidatingLineEdit
 
 
 def network2to1(network2: skrf.network2.Network) -> skrf.Network:
-    return skrf.Network(s=network2.s.val, f=network2.frequency.f)
+    return skrf.Network(s=network2.s.val, f=network2.frequency.f_scaled, f_unit=network2.frequency.unit, name=network2.name)
 
 
 class DragDropEventHandler:
@@ -60,8 +57,10 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.deembedding_dialog = None
         self.tdr_dialog = None
         self.legend_dialog = None
+        self.subnetwork_dialog = None
         self.networkView = None
         self.canvas: MplCanvas = None
         self.title = None
@@ -72,6 +71,9 @@ class MainWindow(QMainWindow):
         self.setupModels()
         self.setupViews()
         self.setupMenus()
+        self.deembedding_dialog = DeembeddingDialog(parent=None, networkModel=self.networkModel)
+        self.deembedding_dialog.resultChanged.connect(self.deembedNetwork)
+
 
     def setupUI(self):
         uic.loadUi('mainwindow.ui', self)
@@ -91,6 +93,7 @@ class MainWindow(QMainWindow):
         self.setupPlotSelectorBox()
         self.setupRangeEdits()
         self.legend_dialog = legendsettings.LegendSettingsDialog(None)
+        self.subnetwork_dialog = subnetwork.SubnetworkDialog(None)
         self.tdr_dialog = TimeGatingDialog(parent=None)
 
     def setupModels(self):
@@ -103,7 +106,7 @@ class MainWindow(QMainWindow):
         self.canvas.setSelectionModel(self.selectionModel)
         self.networkView.setModel(self.networkModel)
         self.networkView.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.networkView.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.networkView.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.networkView.setSelectionModel(self.selectionModel)
         #self.networkView.setContextMenuPolicy(Qt.CustomContextMenu)
         self.networkView.setAnimated(True)
@@ -111,6 +114,7 @@ class MainWindow(QMainWindow):
     def setupMenus(self):
         self.actionNew.triggered.connect(self.reset)
         self.actionOpenTouchstoneFile.triggered.connect(self.openFileDialog)
+        self.actionSaveTouchstone.triggered.connect(self.saveTouchstoneFile)
         self.actionExportFigure.triggered.connect(self.exportFigure)
         self.actionExportCSV.triggered.connect(self.exportCSV)
         self.plotSelectorBox.currentIndexChanged.connect(self.canvas.changePlotMode)
@@ -119,8 +123,13 @@ class MainWindow(QMainWindow):
         self.actionGridMinor.toggled.connect(self.canvas.toggleMinorGrid)
         self.actionCopy_to_clipboard.triggered.connect(self.copyToClipboard)
         self.actionTime_Domain_Gating.triggered.connect(self.triggerTDGating)
+        self.actionCascadeNetworks.triggered.connect(self.cascadeNetworks)
+        self.actionChopInHalf.triggered.connect(self.chopInHalf)
         self.actionLegend.triggered.connect(self.legend_dialog.show)
+        self.actionSubnetwork.triggered.connect(self.subnetwork_dialog.show)
+        self.actionDeembedding.triggered.connect(self.triggerDeembedding)
         self.legend_dialog.columnsChanged.connect(self.canvas.legendChange)
+        self.subnetwork_dialog.portsChanged.connect(self.selectSubnetwork)
         self.tdr_dialog.resultChanged.connect(self.tdrGateNetwork)
 
     def setupPlotSelectorBox(self):
@@ -251,7 +260,10 @@ class MainWindow(QMainWindow):
     def exportCSV(self):
         if not self.canvas:
             return
-        currentNetwork = self.getCurrentNetwork()
+        currentNetworks = self.getCurrentNetworks()
+        currentNetwork = None
+        if len(currentNetworks) > 0:
+            currentNetwork = currentNetworks[0]
         if currentNetwork:
             filenames = QFileDialog.getSaveFileName(caption="Save to CSV", directory=currentNetwork.name,
                                                     filter="CSV files (*.csv)")
@@ -279,31 +291,26 @@ class MainWindow(QMainWindow):
         pixmap = self.canvas.grab()
         qApp.clipboard().setPixmap(pixmap)
 
-    def getCurrentNetworkItem(self) -> NetworkItem:
+    def getCurrentNetworkItems(self) -> list[NetworkItem]:
         index_list = self.selectionModel.selectedIndexes()
-        network = None
-        network_item = None
-        if len(index_list) > 0:
-            index = index_list[0]
+        network_items = []
+        for index in index_list:
             item = self.networkModel.itemFromIndex(index)
 
             if isinstance(item, ParamItem):
                 network_item = item.parent()
-                network = network_item.network()
             elif isinstance(item, NetworkItem):
                 network_item = item
-                network = network_item.network()
-        return network_item
+            network_items.append(network_item)
+        return network_items
 
-    def getCurrentNetwork(self) -> Network:
-        nwIt = self.getCurrentNetworkItem()
-        if nwIt:
-            return nwIt.network()
-        else:
-            return None
+    def getCurrentNetworks(self) -> list[Network]:
+        nwIt = self.getCurrentNetworkItems()
+        nwList = [x.network() for x in nwIt]
+        return nwList
 
     def triggerTDGating(self):
-        network_item = self.getCurrentNetworkItem()
+        network_item = self.getCurrentNetworkItems()
         if network_item is None:
             QMessageBox().critical(self, "Error", "No Network selected")
             return
@@ -314,23 +321,94 @@ class MainWindow(QMainWindow):
         t_center = tmp['center']
         t_span = tmp['span']
         window = tmp['window'].lower()
-        nw = self.getCurrentNetworkItem().network()
-        nwl = list()
-        for pt in nw.port_tuples:
-            network = skrf.Network(s=nw.s[:, pt[0], pt[1]], f=nw.frequency.f_scaled)
-            try:
-                gated_network = network.s11.time_gate(center=t_center.num, span=t_span.num, window=window)
-            except ValueError:
-                QMessageBox().critical(self, "Window not supported", "Window not yet supported, pick another one.")
-                return
+        networks = self.getCurrentNetworks()
+        for nw in networks:
+            nwl = list()
+            for pt in nw.port_tuples:
+                network = skrf.Network(s=nw.s[:, pt[0], pt[1]], f=nw.frequency.f_scaled)
+                try:
+                    gated_network = network.s11.time_gate(center=t_center.num, span=t_span.num, window=window)
+                except ValueError:
+                    QMessageBox().critical(self, "Window not supported", "Window not yet supported, pick another one.")
+                    return
 
-            gated_network.name = nw.name + ' (gated)'
-            nwl.append(gated_network)
-        combined_network = skrf.network.n_oneports_2_nport(nwl, name=nw.name + ' (gated)')
-        nw2 = Network.from_ntwkv1(combined_network)
-        nw2.frequency.unit = 'GHz'
-        nwItem = NetworkItem(nw2)
-        self.networkModel.invisibleRootItem().appendRow(nwItem)
+                gated_network.name = nw.name + ' (gated)'
+                nwl.append(gated_network)
+            combined_network = skrf.network.n_oneports_2_nport(nwl, name=nw.name + ' (gated)')
+            nw2 = Network.from_ntwkv1(combined_network)
+            nw2.frequency.unit = 'GHz'
+            nwItem = NetworkItem(nw2)
+            self.networkModel.invisibleRootItem().appendRow(nwItem)
+
+    def cascadeNetworks(self):
+        networks = []
+        items = self.getCurrentNetworkItems()
+
+        selected = self.selectionModel.selectedIndexes()
+        for idx in selected:
+            item = self.networkModel.itemFromIndex(idx)
+            if type(item) == NetworkItem:
+                nw = item.network()
+                network = network2to1(nw)
+                networks.append(network)
+            else:
+                continue
+
+        if len(networks) < 1:
+            QMessageBox().critical(self, "Insufficient Networks Selected", "Select more than one network")
+            return
+        if len(network) == 1:
+            networks.append(networks[0].flipped())
+        try:
+            cascaded_network = skrf.cascade_list(networks)
+            cascaded_network.name = "{} (cascaded)".format(networks[0].name)
+            self.networkModel.invisibleRootItem().appendRow(NetworkItem(Network.from_ntwkv1(cascaded_network)))
+        except Exception as e:
+            QMessageBox().critical(self,"Exception occured", "Exception {}".format(e))
+
+    def chopInHalf(self):
+        networks = self.getCurrentNetworks()
+        for network in networks:
+            try:
+                nw1 = network2to1(network)
+                nwchop = skrf.network.chopinhalf(nw1)
+                self.networkModel.invisibleRootItem().appendRow(NetworkItem(Network.from_ntwkv1(nwchop)))
+            except Exception as e:
+                QMessageBox().critical(self, "Exception occured", "Exception {}".format(e))
+
+    def selectSubnetwork(self, ports : list[int]):
+        networks = self.getCurrentNetworks()
+        for network in networks:
+            try:
+                nw1 = network2to1(network)
+                nwsub = nw1.subnetwork(ports)
+                self.networkModel.invisibleRootItem().appendRow(NetworkItem(Network.from_ntwkv1(nwsub)))
+            except Exception as e:
+                QMessageBox().critical(self, "Exception occured", "Exception {}".format(e))
+                
+    def triggerDeembedding(self):
+        self.deembedding_dialog.show()
+
+    def deembedNetwork(self,networks: list[Network]):
+        nw1s = [network2to1(x) for x in networks]
+
+        s2xthru = nw1s[1]['7.5GHz-8.8GHz']
+        fdf = nw1s[0]['7.5GHz-8.8GHz']
+        s2xthru.interpolate_self(fdf.frequency)
+        dm = IEEEP370_SE_ZC_2xThru(dummy_2xthru = s2xthru,
+                                   dummy_fix_dut_fix = fdf,
+                                   bandwidth = 10e9,
+                                   pullback1 = 0, pullback2 = 0,
+                                   leadin = 0,
+                                   name = 'zc2xthru',
+                                   kind='linear'
+                                   )
+        deembedded = dm.deembed(fdf)#nw1s[1].inv ** nw1s[0]
+        # TODO: Interpolate Frequencies
+        deembedded.name = "{} deembedded".format(nw1s[0].name)
+        nw = Network.from_ntwkv1(deembedded)
+        self.networkModel.invisibleRootItem().appendRow(NetworkItem(nw))
+
 
     def readFile(self, filename):
         import os
@@ -352,6 +430,17 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(e)
             QtWidgets.QMessageBox().critical(self, "Critical Error", str(e))
+
+    def saveTouchstoneFile(self):
+        currentNetworks = self.getCurrentNetworks()
+        currentNetwork = None
+        if len(currentNetworks) > 0:
+            currentNetwork = currentNetworks[0]
+        if currentNetwork:
+            filenames = QFileDialog.getSaveFileName(self,"Save Network to Touchstone",".")
+            if not filenames or len(filenames) < 2 or filenames[0] == '':
+                return
+            network2to1(currentNetwork).write_touchstone(filename=filenames[0])
 
     def dragEnterEvent(self, e):
         DragDropEventHandler.dragEnterEvent(e)
